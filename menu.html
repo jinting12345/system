@@ -28,16 +28,15 @@
             <button onclick="handleLogout()" class="logout-btn">登出</button>
         </div>
 
-        <!-- 1. 膳管組 -->
         <div class="group-title">🍱 膳管組</div>
         <div class="grid">
-            <a href="upload_bento.html" class="card">
+            <a href="bento.html" class="card">
                 <span class="icon">📸</span>
                 <span>便當上傳</span>
             </a>
             <a href="check_records.html" class="card">
                 <span class="icon">📋</span>
-                <span>檢查紀錄 & 缺漏</span>
+                <span>查看照片上傳紀錄</span>
             </a>
             <a href="#" class="card" onclick="alert('開發中')">
                 <span class="icon">🌡️</span>
@@ -45,7 +44,6 @@
             </a>
         </div>
 
-        <!-- 2. 臨床組 -->
         <div class="group-title">🩺 臨床組</div>
         <div class="grid">
             <div class="card disabled">
@@ -54,7 +52,6 @@
             </div>
         </div>
 
-        <!-- 3. 教研組 -->
         <div class="group-title">🎓 教研組</div>
         <div class="grid">
             <div class="card disabled">
@@ -63,7 +60,6 @@
             </div>
         </div>
 
-        <!-- 4. 共用區 -->
         <div class="group-title">⚙️ 共用區</div>
         <div class="grid">
             <a href="upload_schedule.html" class="card">
@@ -75,7 +71,6 @@
 
     <script>
         function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
-        // ★★★ 請替換 ★★★
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
         const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
@@ -93,5 +88,3 @@
     </script>
 </body>
 </html>
-
-
