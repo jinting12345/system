@@ -3,86 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>營養科系統登入</title>
+    <title>義大營養科資訊系統 - 登入</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f4f4f9; margin: 0; }
-        .login-card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 100%; max-width: 320px; text-align: center; }
-        h2 { color: #333; margin-bottom: 1.5rem; }
-        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px; }
-        button:hover { background: #0056b3; }
-        .error { color: red; font-size: 14px; margin-top: 10px; min-height: 20px; }
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
+        h2 { color: #1a73e8; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #1557b0; }
+        .error { color: red; font-size: 14px; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <div class="login-card">
-        <h2>🏥 科內系統登入</h2>
-        <input type="email" id="email" placeholder="公務帳號 (Email)">
+    <div class="login-box">
+        <h2>🏥 營養科資訊系統</h2>
+        <input type="email" id="email" placeholder="帳號 (Email)">
         <input type="password" id="password" placeholder="密碼">
-        <button onclick="handleLogin()" id="loginBtn">登入</button>
+        <button onclick="handleLogin()" id="loginBtn">登入系統</button>
         <div id="msg" class="error"></div>
     </div>
 
     <script>
-        // ★★★ 強力清潔函式：殺掉所有看不見的隱形符號 ★★★
-        function cleanString(str) {
-            // 只保留 ASCII 範圍內的字元 (英文、數字、標準符號)
-            return str.replace(/[^\x20-\x7E]/g, '').trim();
-        }
-
-        // 原始資料 (不管裡面有沒有混到髒東西，交給程式去洗)
-        const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
-        const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
-        
-        // 經過清洗的資料
-        const SUPABASE_URL = cleanString(RAW_URL);
-        const SUPABASE_KEY = cleanString(RAW_KEY);
-
-        // 初始化
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
+        // ★★★ 請替換 ★★★
+        const RAW_URL = '你的_URL';
+        const RAW_KEY = '你的_KEY';
+        const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
 
         async function handleLogin() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const btn = document.getElementById('loginBtn');
             const msg = document.getElementById('msg');
-
-            if (!email || !password) {
-                msg.innerText = "請輸入帳號密碼";
-                return;
-            }
-
-            btn.disabled = true;
-            btn.innerText = "驗證中...";
-            msg.innerText = "";
-
-            try {
-                const { data, error } = await supabase.auth.signInWithPassword({
-                    email: email,
-                    password: password
-                });
-
-                if (error) throw error;
-
-                // 登入成功，跳轉到選單頁
-                window.location.href = 'menu.html';
-
-            } catch (error) {
-                console.error(error);
+            
+            btn.disabled = true; btn.innerText = "驗證中..."; msg.innerText = "";
+            
+            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            if (error) {
                 msg.innerText = "登入失敗: " + error.message;
-                btn.disabled = false;
-                btn.innerText = "登入";
-            }
-        }
-
-        async function checkSession() {
-            const { data } = await supabase.auth.getSession();
-            if (data.session) {
+                btn.disabled = false; btn.innerText = "登入系統";
+            } else {
                 window.location.href = 'menu.html';
             }
         }
-        checkSession();
+        
+        // 自動登入檢查
+        (async () => {
+            const { data } = await supabase.auth.getSession();
+            if(data.session) window.location.href = 'menu.html';
+        })();
     </script>
 </body>
 </html>
