@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>義大營養科資訊系統 - 登入</title>
+    <title>義大醫院營養科資訊系統 - 登入</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
@@ -26,10 +26,18 @@
 
     <script>
         function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
-        // ★★★ 請替換 ★★★
-        const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
-        const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
+        // ★★★ 請替換成你的 URL 和 KEY ★★★
+        const RAW_URL = '你的_URL';
+        const RAW_KEY = '你的_KEY';
         const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
+
+        // ★★★ 修改重點：一開啟這個頁面，立刻強制登出 ★★★
+        // 這樣就能確保每次打開網頁，都必須重新輸入密碼
+        (async () => {
+            await supabase.auth.signOut();
+            // 清除瀏覽器裡的暫存，確保乾淨
+            localStorage.clear();
+        })();
 
         async function handleLogin() {
             const email = document.getElementById('email').value;
@@ -37,23 +45,25 @@
             const btn = document.getElementById('loginBtn');
             const msg = document.getElementById('msg');
             
+            if (!email || !password) {
+                msg.innerText = "請輸入帳號密碼";
+                return;
+            }
+
             btn.disabled = true; btn.innerText = "驗證中..."; msg.innerText = "";
             
-            const { error } = await supabase.auth.signInWithPassword({ email, password });
+            // 嘗試登入
+            const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            
             if (error) {
-                msg.innerText = "登入失敗: " + error.message;
+                msg.innerText = "登入失敗: 帳號或密碼錯誤";
                 btn.disabled = false; btn.innerText = "登入系統";
+                // 這裡故意不顯示 error.message 詳細錯誤，增加安全性，防止別人猜測
             } else {
+                // 登入成功，跳轉到主選單
                 window.location.href = 'menu.html';
             }
         }
-        
-        // 自動登入檢查
-        (async () => {
-            const { data } = await supabase.auth.getSession();
-            if(data.session) window.location.href = 'menu.html';
-        })();
     </script>
 </body>
 </html>
-
