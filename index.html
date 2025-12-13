@@ -25,11 +25,12 @@
     </div>
 
     <script>
-        // ★★★ 請替換這裡 ★★★
+        // ★★★ 設定區 (已幫你填好並加上除錯功能) ★★★
         const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const SUPABASE_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
         
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // 這裡加上了 .trim()，會自動切除前後的隱形空白
+        const supabase = window.supabase.createClient(SUPABASE_URL.trim(), SUPABASE_KEY.trim());
 
         async function handleLogin() {
             const email = document.getElementById('email').value;
@@ -58,6 +59,7 @@
                 window.location.href = 'menu.html';
 
             } catch (error) {
+                console.error(error); // 在 F12 console 顯示詳細錯誤
                 msg.innerText = "登入失敗: " + error.message;
                 btn.disabled = false;
                 btn.innerText = "登入";
@@ -74,5 +76,4 @@
         checkSession();
     </script>
 </body>
-
 </html>
