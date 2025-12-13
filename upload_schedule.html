@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>班表上傳 (BN專用版)</title>
+    <title>班表上傳 (BN專用修復版)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -12,16 +12,16 @@
         .back-btn { text-decoration: none; color: #666; display: flex; align-items: center; }
         
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        h3 { margin-top: 0; }
+        h3 { margin-top: 0; color: #333; }
         .instruction { background: #e8f0fe; padding: 15px; border-radius: 4px; font-size: 14px; color: #1967d2; margin-bottom: 20px; line-height: 1.6; }
         
-        input[type="file"] { margin: 20px 0; }
-        button { padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
-        button:hover { background: #218838; }
+        input[type="file"] { margin: 20px 0; display: block; width: 100%; }
+        button { padding: 12px 24px; background: #0d6efd; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; transition: background 0.2s; }
+        button:hover { background: #0b5ed7; }
         button:disabled { background: #ccc; cursor: not-allowed; }
         
-        #status { margin-top: 15px; font-weight: bold; white-space: pre-wrap; }
-        .log-box { margin-top: 10px; padding: 10px; background: #f1f1f1; border-radius: 4px; max-height: 200px; overflow-y: auto; font-size: 12px; font-family: monospace; }
+        #status { margin-top: 15px; font-weight: bold; white-space: pre-wrap; line-height: 1.5; }
+        .log-box { margin-top: 15px; padding: 12px; background: #212529; color: #0f0; border-radius: 6px; max-height: 250px; overflow-y: auto; font-size: 12px; font-family: Consolas, monospace; display: none; }
     </style>
 </head>
 <body>
@@ -30,25 +30,26 @@
     </div>
 
     <div class="card">
-        <h3>📅 上傳 Excel 營養治療科班表</h3>
+        <h3>📅 上傳 Excel 營養治療科班表 (BN修復版)</h3>
         
         <div class="instruction">
-            <strong>💡 解析邏輯說明：</strong><br>
-            1. 程式會讀取 Excel 中<strong>每一個 Sheet</strong>（假設為不同月份）。<br>
-            2. 從 Sheet 最左上角 (A1) 判斷年份與月份 (例如：...2025年12月...)。<br>
-            3. 尋找第 3 列 (Row 3) 作為日期列 (1, 2, 3...)。<br>
-            4. 尋找最左邊 (Column A) 作為人員姓名。<br>
-            5. <strong>關鍵字判斷：</strong> 只要格子內包含 <code>BN</code> (如 BN, BN+3, BN+1) 即視為值班。
+            <strong>💡 功能說明：</strong><br>
+            1. 自動讀取 Excel 中的年份與月份 (如：2025年12月)。<br>
+            2. 自動對應日期 (1~31號) 與人員姓名。<br>
+            3. <strong>智慧過濾：</strong> 僅抓取含有 <code>BN</code> 的排班 (包含 BN+3)，並自動排除底部的說明文字。
         </div>
 
         <input type="file" id="fileInput" accept=".xlsx, .xls">
-        <button id="uploadBtn" onclick="processExcel()">開始分析並匯入</button>
+        <button id="uploadBtn" onclick="processExcel()">🚀 開始分析並上傳</button>
         <div id="status"></div>
-        <div id="log" class="log-box" style="display:none;"></div>
+        <div id="log" class="log-box"></div>
     </div>
 
     <script>
+        // 簡單的字串清理函數
         function cleanString(str) { return str ? str.replace(/[^\x20-\x7E]/g, '').trim() : ''; }
+        
+        // Supabase 設定 (保留您原本提供的 Key)
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
         const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
@@ -56,7 +57,7 @@
         function log(message) {
             const logBox = document.getElementById('log');
             logBox.style.display = 'block';
-            logBox.innerHTML += message + '<br>';
+            logBox.innerHTML += `<div>${message}</div>`;
             logBox.scrollTop = logBox.scrollHeight;
         }
 
@@ -64,14 +65,15 @@
             const fileInput = document.getElementById('fileInput');
             const status = document.getElementById('status');
             const btn = document.getElementById('uploadBtn');
+            const logBox = document.getElementById('log');
             
-            if(!fileInput.files.length) { status.innerText = '❌ 請選擇檔案'; return; }
+            if(!fileInput.files.length) { status.innerText = '❌ 請先選擇 Excel 檔案 (.xlsx)'; return; }
             
             const file = fileInput.files[0];
             const reader = new FileReader();
 
-            status.innerText = '⏳ 讀取中...';
-            document.getElementById('log').innerHTML = ''; // 清空 Log
+            status.innerText = '⏳ 正在讀取並分析檔案...';
+            logBox.innerHTML = ''; 
             btn.disabled = true;
 
             reader.onload = async function(e) {
@@ -80,66 +82,71 @@
                     const workbook = XLSX.read(data, {type: 'array'});
                     
                     let allInsertData = [];
+                    let processedSheets = 0;
                     
-                    // 迴圈遍歷每一個 Sheet (月份)
+                    // 遍歷每一個 Sheet
                     workbook.SheetNames.forEach(sheetName => {
                         const sheet = workbook.Sheets[sheetName];
+                        // header:1 會產生二維陣列 [row1, row2, ...]
                         const rows = XLSX.utils.sheet_to_json(sheet, {header: 1});
 
-                        if (rows.length < 5) return; // 跳過資料太少的 Sheet
+                        if (rows.length < 5) return; 
 
-                        // 1. 嘗試從 A1 (Row 0, Col 0) 抓取 年份與月份
-                        // 預期格式範例: "營養治療科班表-2025年12月"
+                        // 1. 抓取標題中的 年/月 (預設在 A1)
                         const titleCell = rows[0][0];
                         if (!titleCell || typeof titleCell !== 'string') return;
 
                         const dateMatch = titleCell.match(/(\d{4})年(\d{1,2})月/);
                         if (!dateMatch) {
-                            log(`⚠️ 跳過 Sheet [${sheetName}]：無法在 A1 識別出 'YYYY年MM月'`);
+                            log(`⚠️ Sheet [${sheetName}]：標題無法識別年份月份，跳過。`);
                             return;
                         }
 
                         const year = dateMatch[1];
                         const month = dateMatch[2].padStart(2, '0');
-                        log(`📂 分析 Sheet [${sheetName}] - 識別為 ${year}年${month}月`);
+                        log(`📂 讀取 Sheet [${sheetName}] -> ${year}-${month}`);
+                        processedSheets++;
 
-                        // 2. 定位日期列 (Row Index 2, 即 Excel 第 3 列)
-                        // 該列格式預期：[姓名, 1, 2, 3, 4, ... , 31, ...]
+                        // 2. 定位日期列 (Row Index 2 => Excel 第3列)
                         const dayRowIndex = 2;
                         const dayRow = rows[dayRowIndex];
-                        
-                        // 建立 欄位索引 -> 日期字串 的對應表
+                        if (!dayRow) return;
+
+                        // 建立 Column Index -> 日期字串 的對照表
                         let colToDateMap = {}; 
                         for (let c = 1; c < dayRow.length; c++) {
                             const dayVal = dayRow[c];
-                            // 檢查是否為 1~31 的數字
+                            // 確保是 1~31 的數字
                             if (dayVal && !isNaN(dayVal) && dayVal >= 1 && dayVal <= 31) {
                                 const dayStr = String(dayVal).padStart(2, '0');
                                 colToDateMap[c] = `${year}-${month}-${dayStr}`;
                             }
                         }
 
-                        // 3. 遍歷人員資料 (從 Row Index 4 開始，即 Excel 第 5 列)
+                        // 3. 遍歷人員列 (從 Row Index 4 => Excel 第5列 開始)
                         for (let r = 4; r < rows.length; r++) {
                             const row = rows[r];
-                            const staffName = row[0]; // A欄是姓名
+                            const staffName = row[0]; // A欄姓名
 
-                            if (!staffName) continue; // 跳過沒有名字的列
+                            // 過濾無效列：空名、說明文字(*開頭)、主管列表
+                            if (!staffName || typeof staffName !== 'string') continue;
+                            if (staffName.trim().startsWith('*') || staffName.includes('主管') || staffName.length > 8) {
+                                continue; 
+                            }
 
-                            // 檢查該人員每一天的班表
+                            // 檢查每一天的排班
                             for (let c in colToDateMap) {
                                 const cellValue = row[c];
                                 const dateStr = colToDateMap[c];
 
-                                // 判斷是否包含 BN (轉大寫比對，包含 BN, BN+1, BN+3...)
+                                // 判斷是否包含 BN (轉大寫比對)
                                 if (cellValue && typeof cellValue === 'string') {
                                     if (cellValue.toUpperCase().includes('BN')) {
-                                        
                                         allInsertData.push({
                                             date: dateStr,
-                                            shift: cellValue, // 保留原始內容 (如 BN+3)
-                                            staff_name: staffName,
-                                            staff_email: '' // Excel 無 email，留空
+                                            shift: cellValue.trim(), 
+                                            staff_name: staffName.trim(),
+                                            staff_email: '' 
                                         });
                                     }
                                 }
@@ -147,30 +154,36 @@
                         }
                     });
 
-                    if (allInsertData.length === 0) {
-                        status.innerText = '⚠️ 分析完成，但在檔案中找不到任何含有 "BN" 的排班資料。';
+                    if (processedSheets === 0) {
+                        status.innerText = '❌ 錯誤：無法在檔案中識別出任何有效的月份標題 (需包含 YYYY年MM月)。';
                         btn.disabled = false;
                         return;
                     }
 
-                    status.innerText = `📊 讀取到 ${allInsertData.length} 筆 BN 值班資料，正在寫入資料庫...`;
-                    console.log('準備寫入:', allInsertData);
+                    if (allInsertData.length === 0) {
+                        status.innerText = '⚠️ 分析完成，但沒有發現任何含有 "BN" 的排班。';
+                        btn.disabled = false;
+                        return;
+                    }
 
-                    // 寫入 Supabase
+                    status.innerText = `📊 分析完成！共找到 ${allInsertData.length} 筆值班資料。\n🚀 正在寫入資料庫...`;
+                    
+                    // 批次寫入 Supabase
                     const { error } = await supabase.from('duty_roster').insert(allInsertData);
                     
                     if(error) throw error;
                     
-                    status.innerHTML = `<span style="color:green">✅ 成功匯入 ${allInsertData.length} 筆資料！</span>`;
-                    log('✅ 資料庫寫入完成。');
+                    status.innerHTML = `<span style="color:#198754; font-size:1.1em;">✅ 上傳成功！已匯入 ${allInsertData.length} 筆資料。</span>`;
+                    log('✅ 資料庫寫入完畢。');
 
                 } catch(err) {
                     console.error(err);
-                    status.innerText = '❌ 失敗: ' + err.message;
+                    status.innerHTML = `<span style="color:#dc3545">❌ 上傳失敗: ${err.message || err}</span>`;
                 } finally {
                     btn.disabled = false;
                 }
             };
+            
             reader.readAsArrayBuffer(file);
         }
     </script>
