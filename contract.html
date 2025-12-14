@@ -1,7 +1,126 @@
-// ★★★ 核心解析邏輯 (地址修復版) ★★★
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>長照合約產生器 (地址解析優化版)</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+
+    <style>
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background-color: #f9f9f9; }
+        .section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { margin-top: 0; color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
+        .btn { color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; transition: 0.3s; margin-top: 10px; }
+        .btn-primary { background-color: #007bff; }
+        .btn-success { background-color: #28a745; }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 8px; background: #f8f9fa; }
+        .debug { margin-top: 20px; padding: 10px; background: #fff3cd; border-radius: 4px; font-size: 12px; max-height: 200px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+
+    <div class="section">
+        <h2>步驟 1:上傳 PDF 自動帶入資料</h2>
+        <div class="upload-area">
+            <p>請上傳「照顧管理評估量表」PDF</p>
+            <input type="file" id="pdf_upload" accept="application/pdf" />
+            <button class="btn btn-primary" onclick="parsePDF()">📂 讀取 PDF 資料</button>
+        </div>
+        <div id="debug" class="debug" style="display:none;"></div>
+    </div>
+
+    <div class="section">
+        <h2>步驟 2:確認並修改資料</h2>
+
+        <div class="form-group">
+            <label>個案姓名</label>
+            <input type="text" id="user_name" placeholder="等待讀取..." />
+        </div>
+
+        <div class="form-group">
+            <label>身分證字號</label>
+            <input type="text" id="user_id" placeholder="等待讀取..." />
+        </div>
+
+        <div class="form-group">
+            <label>個案電話</label>
+            <input type="text" id="user_phone" placeholder="等待讀取..." />
+        </div>
+
+        <div class="form-group">
+            <label>部分負擔 (元)</label>
+            <select id="payment">
+                <option value="240">240 (第三類/一般)</option>
+                <option value="75">75 (第二類/中低收)</option>
+                <option value="0">0 (第一類/低收)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>簽約人姓名</label>
+            <input type="text" id="contractor_name" placeholder="若無代理人則同個案" />
+        </div>
+
+        <div class="form-group">
+            <label>簽約人電話</label>
+            <input type="text" id="contractor_phone" placeholder="若無代理人則同個案" />
+        </div>
+
+        <div class="form-group">
+            <label>戶籍地址</label>
+            <input type="text" id="household_address" placeholder="等待讀取..." />
+        </div>
+
+        <div class="form-group">
+            <label>通訊地址</label>
+            <input type="text" id="contact_address" placeholder="等待讀取..." />
+        </div>
+
+        <div class="form-group">
+            <label>訪視日期 (預設今日)</label>
+            <input type="text" id="visit_date">
+        </div>
+
+        <button class="btn btn-success" onclick="generateWord()">📝 下載 Word 契約書</button>
+    </div>
+
+    <script>
+        // ================= 設定區 =================
+        const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co'; 
+        const SUPABASE_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; 
+        const BUCKET_NAME = 'system_files'; 
+        const TEMPLATE_NAME = 'template.docx';
+        
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        window.onload = function() {
+            const today = new Date();
+            const rocYear = today.getFullYear() - 1911;
+            const dateStr = `${rocYear}年${today.getMonth() + 1}月${today.getDate()}日`;
+            document.getElementById('visit_date').value = dateStr;
+        };
+
+        function showDebug(msg) {
+            const debugDiv = document.getElementById('debug');
+            debugDiv.style.display = 'block';
+            debugDiv.innerHTML += msg + '<br>';
+        }
+
+        // ★★★ 核心解析邏輯 (地址解析優化版) ★★★
         async function parsePDF() {
             const fileInput = document.getElementById('pdf_upload');
             const btn = document.querySelector('button[onclick="parsePDF()"]');
+            const debugDiv = document.getElementById('debug');
             
             if (fileInput.files.length === 0) {
                 alert("請先選擇 PDF 檔案!");
@@ -10,6 +129,8 @@
 
             btn.innerText = "解析中...";
             btn.disabled = true;
+            debugDiv.innerHTML = "開始解析 PDF...<br>";
+            debugDiv.style.display = 'block';
 
             try {
                 const file = fileInput.files[0];
@@ -24,36 +145,43 @@
                     fullText += pageStr + "\n";
                 }
 
-                console.log("PDF文字長度:", fullText.length);
-                
-                // 建立去空白版本用於精確定位
-                const cleanText = fullText.replace(/[\s\n\r]/g, "");
+                showDebug("✓ PDF 讀取完成,共 " + pdf.numPages + " 頁");
 
+                // 乾淨字串 (去除空白,用來抓固定欄位)
+                const cleanText = fullText.replace(/[\s\n\r]/g, "");
+                
                 // --- 1. 個案姓名與身分證 ---
                 let userName = "";
                 let userId = "";
-                const headerMatch = cleanText.match(/個案姓名\/身分證字號[:：]?([^\/]+)\/([A-Z][0-9]{9})/);
+                const headerMatch = cleanText.match(/個案姓名\/身分證字號[::]?([^\/]+)\/([A-Z][0-9]{9})/);
                 if (headerMatch) {
                     let tempName = headerMatch[1].trim();
                     if (tempName && tempName.length > 1 && !tempName.includes("/")) userName = tempName;
                     userId = headerMatch[2].trim();
+                    showDebug("✓ 姓名: " + userName + ", 身分證: " + userId);
                 }
 
                 // 備用姓名抓取
                 if (!userName || userName === "/") {
-                     const backupNameMatch = fullText.match(/個案姓名[:：]?\s*([^\s\/]+)/);
+                     const backupNameMatch = fullText.match(/個案姓名[::]?\s*([^\s]+)/);
                      if (backupNameMatch) {
                          let temp = backupNameMatch[1].trim();
-                         if (!temp.includes("傳統") && !temp.includes("個案") && temp.length > 1) userName = temp;
+                         if (!temp.includes("傳統姓名") && !temp.includes("個案") && temp.length > 1) {
+                             userName = temp;
+                             showDebug("✓ 備用姓名: " + userName);
+                         }
                      }
                 }
 
                 // --- 2. 電話 ---
                 let userPhone = "";
                 const phoneMatch = cleanText.match(/個案電話.*?((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
-                if (phoneMatch) userPhone = phoneMatch[1];
+                if (phoneMatch) {
+                    userPhone = phoneMatch[1];
+                    showDebug("✓ 電話: " + userPhone);
+                }
 
-                // --- 3. 費用等級 ---
+                // --- 3. 費用等級 (只抓福利身分) ---
                 let paymentVal = "240";
                 const welfareMatch = cleanText.match(/長照福利.*?(第[一二三]類)/);
                 if (welfareMatch) {
@@ -61,57 +189,76 @@
                     if (level.includes("第一類")) paymentVal = "0";
                     else if (level.includes("第二類")) paymentVal = "75";
                     else if (level.includes("第三類")) paymentVal = "240";
+                    showDebug("✓ 福利等級: " + level + " -> " + paymentVal + "元");
                 }
 
                 // --- 4. 代理人 ---
                 let contractorName = "";
                 let contractorPhone = "";
                 let agentMatch = cleanText.match(/代理人姓名(.*?)代理人身分證/);
-                if (!agentMatch || agentMatch[1].length < 2) {
-                    agentMatch = cleanText.match(/主要聯絡人姓名(.*?)主要聯絡人/);
+                if (!agentMatch || agentMatch[1].length < 2) agentMatch = cleanText.match(/主要聯絡人姓名(.*?)主要聯絡人/);
+                if (agentMatch) {
+                    contractorName = agentMatch[1].replace(/[:：]/g, "").trim();
+                    showDebug("✓ 代理人姓名: " + contractorName);
                 }
-                if (agentMatch) contractorName = agentMatch[1].replace(/[:：]/g, "").trim();
 
-                const agentMobileMatch = cleanText.match(/代理人手機[:：]?.*?((09\d{8}))/);
-                if (agentMobileMatch) contractorPhone = agentMobileMatch[1];
-                else {
-                    const contactMobileMatch = cleanText.match(/聯絡人手機[:：]?.*?((09\d{8}))/);
+                const agentMobileMatch = cleanText.match(/代理人手機[::]?.*?((09\d{8}))/);
+                if (agentMobileMatch) {
+                    contractorPhone = agentMobileMatch[1];
+                } else {
+                    const contactMobileMatch = cleanText.match(/聯絡人手機[::]?.*?((09\d{8}))/);
                     if (contactMobileMatch) contractorPhone = contactMobileMatch[1];
                 }
+                if (contractorPhone) showDebug("✓ 代理人電話: " + contractorPhone);
 
                 if (!contractorName || contractorName.length < 2) contractorName = userName;
                 if (!contractorPhone) contractorPhone = userPhone;
 
-                // --- 5. 地址 (改用正則，參考Python版) ---
+                // --- 5. 地址 (改進版正則表達式) ---
                 let householdAddress = "";
                 let contactAddress = "";
 
-                // 戶籍地址：直接用正則抓取
-                const hRegex = /戶籍地址[^\n]*?\n\s*※.*?\n\s*(.+?)(?=\n|$)/;
-                const hMatch = fullText.match(hRegex);
-                if (hMatch) {
-                    householdAddress = hMatch[1].trim();
-                } else {
-                    // 簡化版：抓「戶籍地址」後第一個完整地址
-                    const hSimple = fullText.match(/戶籍地址[^\n]+\n[^\n]*\n\s*([^\n]+)/);
-                    if (hSimple) householdAddress = hSimple[1].trim();
+                // 方法一:使用原始 fullText (保留換行)
+                // (A) 戶籍地址
+                const houseRegex = /戶籍地址[^\n]*?\n\s*※[^\n]*?\n\s*([^\n]+)/;
+                const houseMatch = fullText.match(houseRegex);
+                if (houseMatch) {
+                    householdAddress = houseMatch[1]
+                        .replace(/\(里[^\)]*\)/g, "")  // 移除 (里...)
+                        .replace(/\s+/g, "")           // 移除空白
+                        .trim();
+                    showDebug("✓ 戶籍地址 (方法一): " + householdAddress);
                 }
 
-                // 通訊地址：抓「居住(通訊)地址」段落
-                const cRegex = /居住\(通訊\)地\s*址[^\n]*?\n\s*※.*?\n\s*(.+?)(?=\n常用語言|$)/;
-                const cMatch = fullText.match(cRegex);
-                if (cMatch) {
-                    let rawC = cMatch[1].trim();
-                    // 移除郵遞區號
-                    rawC = rawC.replace(/\(郵遞區號[:：]?\s*\d*\)/g, "");
-                    contactAddress = rawC.trim();
-                } else {
-                    // 簡化版
-                    const cSimple = fullText.match(/居住\(通訊\)地[^\n]+\n[^\n]*\n\s*([^\n]+)/);
-                    if (cSimple) {
-                        let rawC = cSimple[1].trim();
-                        rawC = rawC.replace(/\(郵遞區號[:：]?\s*\d*\)/g, "");
-                        contactAddress = rawC.trim();
+                // 備用方法:從 cleanText 抓取
+                if (!householdAddress) {
+                    const houseBackup = cleanText.match(/戶籍地址.*?([台臺]?[北中南高屏台桃竹苗彰雲嘉][^\n居常]{8,50}[號])/);
+                    if (houseBackup) {
+                        householdAddress = houseBackup[1];
+                        showDebug("✓ 戶籍地址 (備用): " + householdAddress);
+                    }
+                }
+
+                // (B) 通訊地址
+                const contactRegex = /居住\(通訊\)地[址]?[^\n]*?\n\s*※[^\n]*?\n\s*([^\n]+)/;
+                const contactMatch = fullText.match(contactRegex);
+                if (contactMatch) {
+                    contactAddress = contactMatch[1]
+                        .replace(/\(郵遞區號[:\s]*\d+\)/g, "")  // 移除郵遞區號
+                        .replace(/\(里[^\)]*\)/g, "")           // 移除 (里...)
+                        .replace(/\s+/g, "")                    // 移除空白
+                        .trim();
+                    showDebug("✓ 通訊地址 (方法一): " + contactAddress);
+                }
+
+                // 備用方法:從 cleanText 抓取
+                if (!contactAddress) {
+                    const contactBackup = cleanText.match(/居住.*?([台臺]?[北中南高屏台桃竹苗彰雲嘉][^\n常語]{8,50}[號])/);
+                    if (contactBackup) {
+                        contactAddress = contactBackup[1]
+                            .replace(/\(郵遞區號[:\s]*\d+\)/g, "")
+                            .replace(/居住\(通訊\)地址?/g, "");
+                        showDebug("✓ 通訊地址 (備用): " + contactAddress);
                     }
                 }
 
@@ -122,23 +269,83 @@
                 document.getElementById('payment').value = paymentVal;
                 document.getElementById('contractor_name').value = contractorName || "";
                 document.getElementById('contractor_phone').value = contractorPhone || "";
-                document.getElementById('household_address').value = householdAddress || "";
-                document.getElementById('contact_address').value = contactAddress || "";
-
-                console.log("戶籍:", householdAddress);
-                console.log("通訊:", contactAddress);
+                
+                if (householdAddress) document.getElementById('household_address').value = householdAddress;
+                if (contactAddress) document.getElementById('contact_address').value = contactAddress;
 
                 if (householdAddress || contactAddress) {
-                    alert(`✅ 解析成功！\n\n戶籍：${householdAddress}\n\n通訊：${contactAddress}`);
+                    showDebug("✅ 解析完成!");
+                    alert(`解析成功!\n戶籍:${householdAddress}\n通訊:${contactAddress}`);
                 } else {
-                    alert("⚠️ 姓名電話已解析，但地址未找到，請手動輸入。");
+                    showDebug("⚠️ 地址解析失敗,請手動填寫");
+                    alert("姓名電話已解析,但地址解析失敗,請手動填寫。");
                 }
 
             } catch (err) {
                 console.error(err);
-                alert("讀取 PDF 失敗：" + err.message);
+                showDebug("❌ 錯誤: " + err.message);
+                alert("讀取 PDF 失敗:" + err.message);
             } finally {
                 btn.innerText = "📂 讀取 PDF 資料";
                 btn.disabled = false;
             }
         }
+
+        function calculateEndDate(visitDateStr) {
+            if (!visitDateStr) return "";
+            const match = visitDateStr.match(/^(\d{2,3})年(\d{1,2})月(\d{1,2})日$/);
+            if (!match) return "";
+            let year = parseInt(match[1]) + 1911;
+            let month = parseInt(match[2]);
+            let day = parseInt(match[3]);
+            let newMonth = month + 3;
+            let newYear = year;
+            if (newMonth > 12) { newYear += 1; newMonth -= 12; }
+            const lastDayOfNewMonth = new Date(newYear, newMonth, 0).getDate();
+            const newDay = Math.min(day, lastDayOfNewMonth);
+            return `${newYear - 1911}年${newMonth}月${newDay}日`;
+        }
+
+        async function generateWord() {
+            const btn = document.querySelector('.btn-success');
+            const originalText = btn.innerText;
+            btn.innerText = "⏳ 處理中...";
+            btn.disabled = true;
+
+            try {
+                const { data: fileData, error } = await supabase.storage.from(BUCKET_NAME).download(TEMPLATE_NAME);
+                if (error) throw new Error("下載範本失敗: " + error.message);
+
+                const visitDate = document.getElementById('visit_date').value;
+                const templateData = {
+                    user_name: document.getElementById('user_name').value,
+                    user_id: document.getElementById('user_id').value,
+                    user_phone: document.getElementById('user_phone').value,
+                    payment: document.getElementById('payment').value,
+                    contractor_name: document.getElementById('contractor_name').value,
+                    contractor_phone: document.getElementById('contractor_phone').value,
+                    household_address: document.getElementById('household_address').value,
+                    contact_address: document.getElementById('contact_address').value,
+                    visit_date: visitDate,
+                    end_date: calculateEndDate(visitDate)
+                };
+
+                const arrayBuffer = await fileData.arrayBuffer();
+                const zip = new PizZip(arrayBuffer);
+                const doc = new window.docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+                doc.render(templateData);
+
+                const blob = doc.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+                saveAs(blob, `義大醫院契約書_${templateData.user_name}.docx`);
+                
+            } catch (err) {
+                alert("錯誤: " + err.message);
+                console.error(err);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
