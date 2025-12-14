@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約產生器 (地址解析優化版)</title>
+    <title>長照合約產生器 (地址修正版)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
@@ -81,7 +81,7 @@
         </div>
 
         <div class="form-group">
-            <label>通訊地址</label>
+            <label>通訊地址 (已修正移除郵遞區號)</label>
             <input type="text" id="contact_address" placeholder="等待讀取..." />
         </div>
 
@@ -116,7 +116,7 @@
             debugDiv.innerHTML += msg + '<br>';
         }
 
-        // ★★★ 核心解析邏輯 (地址解析優化版) ★★★
+        // ★★★ 核心解析邏輯 (修正地址抓取) ★★★
         async function parsePDF() {
             const fileInput = document.getElementById('pdf_upload');
             const btn = document.querySelector('button[onclick="parsePDF()"]');
@@ -145,47 +145,27 @@
                     fullText += pageStr + "\n";
                 }
 
-                showDebug("✓ PDF 讀取完成,共 " + pdf.numPages + " 頁");
+                showDebug("✓ PDF 讀取完成");
 
-                // 乾淨字串 (去除空白,用來抓固定欄位)
+                // 產生乾淨的單行文字 (去除換行與空格)
                 const cleanText = fullText.replace(/[\s\n\r]/g, "");
                 
-                // --- 1. 個案姓名與身分證 ---
+                // 1. 個案姓名與身分證
                 let userName = "";
                 let userId = "";
                 const headerMatch = cleanText.match(/個案姓名\/身分證字號[:：]?([^\/]+)\/([A-Z][0-9]{9})/);
                 if (headerMatch) {
-                    let tempName = headerMatch[1]
-                        .replace(/[:：]/g, "")  // 移除冒號
-                        .trim();
-                    if (tempName && tempName.length > 1 && !tempName.includes("/")) userName = tempName;
+                    let tempName = headerMatch[1].replace(/[:：]/g, "").trim();
+                    if (tempName) userName = tempName;
                     userId = headerMatch[2].trim();
-                    showDebug("✓ 姓名: " + userName + ", 身分證: " + userId);
                 }
 
-                // 備用姓名抓取
-                if (!userName || userName === "/" || userName.startsWith(":") || userName.startsWith("：")) {
-                     const backupNameMatch = fullText.match(/個案姓名[:：]?\s*([^\s\/]+)/);
-                     if (backupNameMatch) {
-                         let temp = backupNameMatch[1]
-                             .replace(/[:：]/g, "")
-                             .trim();
-                         if (!temp.includes("傳統姓名") && !temp.includes("個案") && temp.length > 1) {
-                             userName = temp;
-                             showDebug("✓ 備用姓名: " + userName);
-                         }
-                     }
-                }
-
-                // --- 2. 電話 ---
+                // 2. 電話
                 let userPhone = "";
                 const phoneMatch = cleanText.match(/個案電話.*?((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
-                if (phoneMatch) {
-                    userPhone = phoneMatch[1];
-                    showDebug("✓ 電話: " + userPhone);
-                }
+                if (phoneMatch) userPhone = phoneMatch[1];
 
-                // --- 3. 費用等級 (只抓福利身分) ---
+                // 3. 費用等級
                 let paymentVal = "240";
                 const welfareMatch = cleanText.match(/長照福利.*?(第[一二三]類)/);
                 if (welfareMatch) {
@@ -193,17 +173,16 @@
                     if (level.includes("第一類")) paymentVal = "0";
                     else if (level.includes("第二類")) paymentVal = "75";
                     else if (level.includes("第三類")) paymentVal = "240";
-                    showDebug("✓ 福利等級: " + level + " -> " + paymentVal + "元");
                 }
 
-                // --- 4. 代理人 ---
+                // 4. 代理人
                 let contractorName = "";
                 let contractorPhone = "";
                 let agentMatch = cleanText.match(/代理人姓名(.*?)代理人身分證/);
-                if (!agentMatch || agentMatch[1].length < 2) agentMatch = cleanText.match(/主要聯絡人姓名(.*?)主要聯絡人/);
+                if (!agentMatch) agentMatch = cleanText.match(/主要聯絡人姓名(.*?)主要聯絡人/);
+                
                 if (agentMatch) {
                     contractorName = agentMatch[1].replace(/[:：]/g, "").trim();
-                    showDebug("✓ 代理人姓名: " + contractorName);
                 }
 
                 const agentMobileMatch = cleanText.match(/代理人手機[::]?.*?((09\d{8}))/);
@@ -213,60 +192,50 @@
                     const contactMobileMatch = cleanText.match(/聯絡人手機[::]?.*?((09\d{8}))/);
                     if (contactMobileMatch) contractorPhone = contactMobileMatch[1];
                 }
-                if (contractorPhone) showDebug("✓ 代理人電話: " + contractorPhone);
 
                 if (!contractorName || contractorName.length < 2) contractorName = userName;
                 if (!contractorPhone) contractorPhone = userPhone;
 
-                // --- 5. 地址 (改進版正則表達式) ---
+                // ================= 地址解析 (重點修正區) =================
+                
                 let householdAddress = "";
                 let contactAddress = "";
 
-                // 方法一:使用原始 fullText (保留換行)
-                // (A) 戶籍地址
-                const houseRegex = /戶籍地址[^\n]*?\n\s*※[^\n]*?\n\s*([^\n]+)/;
-                const houseMatch = fullText.match(houseRegex);
+                // (A) 戶籍地址：跳過提示文字，直接抓取縣市開頭的字串
+                // 邏輯：找「戶籍地址」 -> 忽略中間的 ※ 說明 -> 抓取「XX市...號」
+                const houseRegex = /戶籍地址.*?([台臺]?[北中南高屏新宜花東澎金連苗彰雲嘉南投][縣市].*?號)/;
+                const houseMatch = cleanText.match(houseRegex);
                 if (houseMatch) {
-                    householdAddress = houseMatch[1]
-                        .replace(/\(里[^\)]*\)/g, "")  // 移除 (里...)
-                        .replace(/\s+/g, "")           // 移除空白
-                        .trim();
-                    showDebug("✓ 戶籍地址 (方法一): " + householdAddress);
+                    householdAddress = houseMatch[1];
+                    showDebug("✓ 戶籍地址: " + householdAddress);
                 }
 
-                // 備用方法:從 cleanText 抓取
-                if (!householdAddress) {
-                    const houseBackup = cleanText.match(/戶籍地址.*?([台臺]?[北中南高屏台桃竹苗彰雲嘉][^\n居常]{8,50}[號])/);
-                    if (houseBackup) {
-                        householdAddress = houseBackup[1];
-                        showDebug("✓ 戶籍地址 (備用): " + householdAddress);
-                    }
-                }
+                // (B) 通訊地址：特別處理夾帶郵遞區號的情況
+                // 邏輯：找「居住(通訊)地址」 -> 抓取包含「市/縣」到「號」的字串 -> 清理括號
+                const contactRegex = /居住\(?通訊\)?地址.*?([台臺]?[北中南高屏新宜花東澎金連苗彰雲嘉南投][縣市].*?號)/;
+                const contactMatch = cleanText.match(contactRegex);
 
-                // (B) 通訊地址
-                const contactRegex = /居住\(通訊\)地[址]?[^\n]*?\n\s*※[^\n]*?\n\s*([^\n]+)/;
-                const contactMatch = fullText.match(contactRegex);
                 if (contactMatch) {
-                    contactAddress = contactMatch[1]
-                        .replace(/\(郵遞區號[:\s]*\d+\)/g, "")  // 移除郵遞區號
-                        .replace(/\(里[^\)]*\)/g, "")           // 移除 (里...)
-                        .replace(/\s+/g, "")                    // 移除空白
-                        .trim();
-                    showDebug("✓ 通訊地址 (方法一): " + contactAddress);
+                    let rawContact = contactMatch[1];
+                    // ★★★ 關鍵修正：移除 (郵遞區號: xxx) 及其括號 ★★★
+                    // 這行會把 "(郵遞區號: 826)" 替換成空字串
+                    contactAddress = rawContact.replace(/\(郵遞區號[:\s]*\d+\)/g, "").trim();
+                    
+                    showDebug("✓ 通訊地址 (原始): " + rawContact);
+                    showDebug("✓ 通訊地址 (修正後): " + contactAddress);
                 }
 
-                // 備用方法:從 cleanText 抓取
+                // 若上述正則沒抓到，嘗試更寬鬆的備案 (針對您的PDF截圖特徵)
                 if (!contactAddress) {
-                    const contactBackup = cleanText.match(/居住.*?([台臺]?[北中南高屏台桃竹苗彰雲嘉][^\n常語]{8,50}[號])/);
-                    if (contactBackup) {
-                        contactAddress = contactBackup[1]
-                            .replace(/\(郵遞區號[:\s]*\d+\)/g, "")
-                            .replace(/居住\(通訊\)地址?/g, "");
-                        showDebug("✓ 通訊地址 (備用): " + contactAddress);
+                    // 嘗試直接尋找包含 "郵遞區號" 的地址行
+                    const zipMatch = cleanText.match(/([台臺]?[^0-9\s]+?[縣市].*?\(郵遞區號[:\s]*\d+\).*?號)/);
+                    if (zipMatch) {
+                         contactAddress = zipMatch[1].replace(/\(郵遞區號[:\s]*\d+\)/g, "").trim();
+                         showDebug("✓ 通訊地址 (備用邏輯): " + contactAddress);
                     }
                 }
 
-                // --- 填入表單 ---
+                // ================= 填入表單 =================
                 document.getElementById('user_name').value = userName || "";
                 document.getElementById('user_id').value = userId || "";
                 document.getElementById('user_phone').value = userPhone || "";
@@ -277,12 +246,12 @@
                 if (householdAddress) document.getElementById('household_address').value = householdAddress;
                 if (contactAddress) document.getElementById('contact_address').value = contactAddress;
 
-                if (householdAddress || contactAddress) {
-                    showDebug("✅ 解析完成!");
-                    alert(`解析成功!\n戶籍:${householdAddress}\n通訊:${contactAddress}`);
+                if (contactAddress && contactAddress !== householdAddress) {
+                    alert(`解析成功！\n通訊地址已修正為：${contactAddress}`);
+                } else if (!contactAddress) {
+                    alert("地址解析不完全，請手動確認通訊地址。");
                 } else {
-                    showDebug("⚠️ 地址解析失敗,請手動填寫");
-                    alert("姓名電話已解析,但地址解析失敗,請手動填寫。");
+                    alert("解析完成 (通訊地址與戶籍地址相同，請確認是否正確)");
                 }
 
             } catch (err) {
