@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約產生器 (三明治夾心暴力版)</title>
+    <title>長照合約產生器 (地址偵測專用版)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
@@ -116,21 +116,7 @@
             debugDiv.innerHTML += msg + '<br>';
         }
 
-        // ★★★ 清理函數：專門對付截圖中的雜訊 ★★★
-        function cleanCapturedText(text) {
-            if (!text) return "";
-            return text
-                .replace("戶籍地址", "")             // 移除標題
-                .replace(/居住\(?通訊\)?地址?/, "")   // 移除標題
-                .replace(/常用語言.*/, "")           // 移除下一個欄位的標題
-                .replace(/※.*?(必填|郵遞區號).*?(\)|）)/g, "") // 移除 "(里、鄰...)" 那些提示
-                .replace(/※/g, "")
-                .replace(/\(郵遞區號[:：\s]*\d+\)/g, "") // ★★★ 關鍵：這裡會把 (郵遞區號: 826) 刪掉
-                .replace(/[\s\n\r]/g, "")            // 移除所有空白和換行
-                .trim();
-        }
-
-        // ★★★ 核心解析邏輯 (三明治夾心法) ★★★
+        // ★★★ 核心解析邏輯 (地址偵測版) ★★★
         async function parsePDF() {
             const fileInput = document.getElementById('pdf_upload');
             const btn = document.querySelector('button[onclick="parsePDF()"]');
@@ -153,14 +139,12 @@
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
                     const textContent = await page.getTextContent();
-                    // 直接串接所有文字，不保留換行，方便抓取關鍵字之間的內容
                     const pageStr = textContent.items.map(item => item.str).join(""); 
                     fullText += pageStr;
                 }
 
                 showDebug("✓ PDF 內容讀取完成 (總長度: " + fullText.length + ")");
                 
-                // 去除所有空白，方便定位
                 const cleanText = fullText.replace(/[\s\n\r]/g, "");
 
                 // 1. 一般欄位解析
@@ -194,35 +178,49 @@
                 if (!contractorPhone) contractorPhone = userPhone;
 
                 // ==========================================
-                // ★★★ 地址解析 (三明治夾心法) ★★★
-                // 邏輯：不找「地址長怎樣」，而是抓「戶籍地址」到「居住」中間的所有字
+                // ★★★ 地址解析 (全新邏輯：特徵偵測) ★★★
+                // 邏輯：不看關鍵字在哪，直接抓整份文件裡長得像地址的字串
                 // ==========================================
                 
                 let householdAddress = "";
                 let contactAddress = "";
                 
-                // 1. 找關鍵字位置
-                const idxHouse = cleanText.indexOf("戶籍地址");
-                const idxContact = cleanText.indexOf("居住"); // 通常是 "居住(通訊)地址"
-                const idxNextField = cleanText.indexOf("常用語言"); // 通常是下一個欄位
+                // 1. 清理文字，移除干擾項 (保留郵遞區號)
+                // 這裡我們移除「居住狀況」、「固定與他人同住」這些常見的干擾詞，
+                // 並移除括號裡的說明文字，但小心不要刪到郵遞區號
+                let addressSearchText = fullText
+                    .replace(/居住狀況/g, "")
+                    .replace(/固定與他人同住/g, "")
+                    .replace(/※.*?(必填).*?(\)|）)/g, "") // 移除 "(里、鄰...非必填)"
+                    .replace(/[\s\n\r]/g, ""); // 移除所有空白
 
-                // 2. 如果關鍵字都存在，就開始切
-                if (idxHouse !== -1 && idxContact !== -1) {
-                    // 切出「戶籍地址」到「居住」中間的字
-                    let rawHouse = cleanText.substring(idxHouse, idxContact);
-                    householdAddress = cleanCapturedText(rawHouse);
-                    showDebug(`✓ 戶籍地址原始提取: ${rawHouse.substring(0, 10)}... -> 結果: ${householdAddress}`);
+                // 2. 正則表達式：尋找「縣市」開頭，直到「號」或「樓」結束的字串
+                // [台臺]?...[縣市] -> 抓開頭 (例如 高雄市)
+                // .*? -> 抓中間所有字 (包含郵遞區號)
+                // [號樓] -> 抓結尾
+                // g -> 抓全部符合的
+                const addressRegex = /([台臺]?[北中南高屏新宜花東澎金連苗彰雲嘉南投][縣市].*?[號樓])/g;
+                
+                // 執行搜尋
+                const matches = addressSearchText.match(addressRegex);
+                
+                if (matches && matches.length > 0) {
+                    // 通常第一個出現的是戶籍地址
+                    householdAddress = matches[0];
+                    showDebug("✓ 偵測到地址 1: " + householdAddress);
 
-                    if (idxNextField !== -1) {
-                        // 切出「居住」到「常用語言」中間的字
-                        let rawContact = cleanText.substring(idxContact, idxNextField);
-                        contactAddress = cleanCapturedText(rawContact);
-                        showDebug(`✓ 通訊地址原始提取: ${rawContact.substring(0, 10)}... -> 結果: ${contactAddress}`);
+                    if (matches.length >= 2) {
+                        // 如果有第二個，通常就是通訊地址
+                        // 我們取最後一個匹配到的，通常是通訊地址 (避免中間抓到奇怪的東西)
+                        contactAddress = matches[matches.length - 1];
+                        showDebug("✓ 偵測到地址 2: " + contactAddress);
                     } else {
-                        // 萬一找不到「常用語言」，就往後抓 50 個字
-                        let rawContact = cleanText.substring(idxContact, idxContact + 100);
-                        contactAddress = cleanCapturedText(rawContact);
+                        // 如果只抓到一個，可能通訊同戶籍，或者只抓到其中一個
+                        // 這裡先預設通訊地址為空，讓使用者自己確認，或者設為同戶籍
+                         showDebug("⚠️ 只偵測到一個地址");
                     }
+                } else {
+                    showDebug("⚠️ 未偵測到標準地址格式");
                 }
 
                 // ================= 填入表單 =================
@@ -236,10 +234,12 @@
                 document.getElementById('household_address').value = householdAddress || "";
                 document.getElementById('contact_address').value = contactAddress || "";
 
-                if (contactAddress) {
+                if (householdAddress && contactAddress) {
                     alert(`解析成功！\n\n戶籍：${householdAddress}\n通訊：${contactAddress}`);
+                } else if (householdAddress) {
+                    alert(`解析部分成功。\n戶籍：${householdAddress}\n\n通訊地址未自動抓取，請確認是否與戶籍相同。`);
                 } else {
-                    alert("地址解析欄位為空，請確認 PDF 內容是否為標準格式。");
+                    alert("未偵測到地址，請手動填寫。");
                 }
 
             } catch (err) {
