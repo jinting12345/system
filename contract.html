@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約產生器 (精準修正版)</title>
+    <title>長照合約產生器 (強力修正版)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
@@ -108,7 +108,7 @@
             document.getElementById('visit_date').value = dateStr;
         };
 
-        // ★★★ 核心修正：地址與身分判斷邏輯 ★★★
+        // ★★★ 核心解析邏輯 ★★★
         async function parsePDF() {
             const fileInput = document.getElementById('pdf_upload');
             const btn = document.querySelector('button[onclick="parsePDF()"]');
@@ -134,12 +134,16 @@
                     fullText += pageStr + "\n";
                 }
 
-                // 製作乾淨字串 (去除所有空白與標點，用於精準搜尋)
-                const cleanText = fullText.replace(/[\s,"'\[\]]/g, "");
+                // 製作乾淨字串 (去除所有空白與標點，保留純文字)
+                // 這樣 "代理人 姓名 : 王錦玉" 會變成 "代理人姓名王錦玉"
+                const cleanText = fullText.replace(/[\s\n\r]/g, "");
                 
+                // console.log("Clean Text:", cleanText);
+
                 // --- 1. 個案姓名與身分證 ---
                 let userName = "";
                 let userId = "";
+                // 優先抓表頭: 個案姓名/身分證字號:吳秀枝/S201821350
                 const headerMatch = cleanText.match(/個案姓名\/身分證字號[:：]?([^\/]+)\/([A-Z][0-9]{9})/);
                 if (headerMatch) {
                     userName = headerMatch[1].trim();
@@ -148,69 +152,76 @@
 
                 // --- 2. 電話 (手機或市話) ---
                 let userPhone = "";
+                // 找 "個案電話" 後面的 09xxxxxxxx 或 0x-xxxxxxx
                 const phoneMatch = cleanText.match(/個案電話.*?((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
                 if (phoneMatch) {
                     userPhone = phoneMatch[1];
                 }
 
-                // --- 3. 代理人 (簽約人) ---
-                let contractorName = "";
-                let contractorPhone = "";
+                // --- 3. 費用/福利身分 (修正：直接找 "長照福利" 後面) ---
+                let paymentVal = "240"; // 預設
+                // 策略：找 "長照福利" 後面緊接的 "第X類"
+                // 這樣可以避開 "身分說明" 標題的干擾
+                const welfareMatch = cleanText.match(/長照福利.*?(第[一二三]類)/);
                 
-                const agentNameMatch = cleanText.match(/代理人姓名(.*?)代理人身分證/);
-                if (agentNameMatch) {
-                    contractorName = agentNameMatch[1].trim();
-                }
-                const agentMobileMatch = cleanText.match(/代理人手機((09\d{8}))/);
-                if (agentMobileMatch) contractorPhone = agentMobileMatch[1];
-
-                if (!contractorName || contractorName.length < 2) contractorName = userName;
-                if (!contractorPhone) contractorPhone = userPhone;
-
-                // --- 4. 地址解析 (使用特徵點搜尋) ---
-                let householdAddress = "";
-                let contactAddress = "";
-
-                // (A) 戶籍地址：尋找 "戶籍地址" 到 "※" 之間的內容
-                // cleanText 裡會是 "戶籍地址高雄市..." 
-                const hMatch = cleanText.match(/戶籍地址(.*?)(※|\(里)/);
-                if (hMatch) {
-                    householdAddress = hMatch[1].trim();
-                }
-
-                // (B) 通訊地址：尋找 "居住(通訊)地" 到 "※" 之間的內容
-                // Regex 說明：
-                // 居住\(?通訊\)?地  -> 容許括號可能被吃掉
-                // [址]?            -> 容許 "址" 字存在或不存在
-                // (.*?)            -> 抓取地址本體
-                // (※|\(里)        -> 遇到 "※" 或 "(里" 就停止
-                const cMatch = cleanText.match(/居住\(?通訊\)?地[址]?(.*?)(※|\(里)/);
-                if (cMatch) {
-                    let rawAddr = cMatch[1];
-                    // 移除常見雜訊：(郵遞區號:826) 或單獨的 "址"
-                    rawAddr = rawAddr.replace(/[\(（]郵遞區號[:：]?\d*[\)）]/g, ""); 
-                    rawAddr = rawAddr.replace(/^址/, ""); 
-                    contactAddress = rawAddr.trim();
-                }
-
-                // --- 5. 費用等級 (修正判斷邏輯) ---
-                // 不再全文搜尋，而是鎖定 "長照福利" 關鍵字後面
-                let paymentVal = "240"; // 預設第三類
-
-                // 搜尋模式： "長照福利" 或 "身份說明" 後面接 "第X類"
-                // 這樣可以避開 PDF 內文中列出的所有選項 (如 1.第一類 2.第二類...)
-                const welfareMatch = cleanText.match(/長照福利.*?身.*?分.*?說明.*?(第[一二三]類)/) || cleanText.match(/長照福利.*?(第[一二三]類)/);
-
                 if (welfareMatch) {
                     const level = welfareMatch[1];
                     if (level.includes("第一類")) paymentVal = "0";
                     else if (level.includes("第二類")) paymentVal = "75";
                     else if (level.includes("第三類")) paymentVal = "240";
+                }
+
+                // --- 4. 代理人 / 簽約人 (修正：增加備用搜尋) ---
+                let contractorName = "";
+                let contractorPhone = "";
+                
+                // 策略 A: 找 "代理人姓名" ... "代理人身分證" 之間
+                let agentMatch = cleanText.match(/代理人姓名(.*?)代理人身分證/);
+                
+                // 策略 B (備用): 如果策略 A 失敗，找 "主要聯絡人" (通常是同一人)
+                if (!agentMatch || agentMatch[1].length < 2) {
+                     agentMatch = cleanText.match(/主要聯絡人姓名(.*?)主要聯絡人電話/);
+                }
+
+                if (agentMatch) {
+                    // 去除可能殘留的標點 (如 ":", "：")
+                    contractorName = agentMatch[1].replace(/[:：]/g, "").trim();
+                }
+
+                // 代理人電話
+                const agentMobileMatch = cleanText.match(/代理人手機[:：]?.*?((09\d{8}))/);
+                if (agentMobileMatch) {
+                    contractorPhone = agentMobileMatch[1];
                 } else {
-                    // 備用：如果都沒抓到，才退回全文搜尋 (但要小心)
-                    if (cleanText.includes("福利身分說明第三類") || cleanText.includes("長照福利第三類")) paymentVal = "240";
-                    else if (cleanText.includes("福利身分說明第二類") || cleanText.includes("長照福利第二類")) paymentVal = "75";
-                    else if (cleanText.includes("福利身分說明第一類") || cleanText.includes("長照福利第一類")) paymentVal = "0";
+                    // 備用：聯絡人手機
+                    const contactMobileMatch = cleanText.match(/聯絡人手機[:：]?.*?((09\d{8}))/);
+                    if (contactMobileMatch) contractorPhone = contactMobileMatch[1];
+                }
+
+                // 若仍無資料，預設為個案本人
+                if (!contractorName || contractorName.length < 2) contractorName = userName;
+                if (!contractorPhone) contractorPhone = userPhone;
+
+                // --- 5. 地址 (修正：強力去雜訊) ---
+                let householdAddress = "";
+                let contactAddress = "";
+
+                // (A) 戶籍地址: 找 "戶籍地址" 到 "※"
+                const hMatch = cleanText.match(/戶籍地址[:：]?(.*?)(※|\(里)/);
+                if (hMatch) {
+                    householdAddress = hMatch[1].trim();
+                }
+
+                // (B) 通訊地址: 找 "居住(通訊)地" 到 "※"
+                // [址]? 處理可能出現的 "址" 字
+                const cMatch = cleanText.match(/居住\(?通訊\)?地[址]?[:：]?(.*?)(※|\(里)/);
+                if (cMatch) {
+                    let raw = cMatch[1];
+                    // 清理: 移除 (郵遞區號:xxx) 和 尾部的 "址"
+                    raw = raw.replace(/[\(（]郵遞區號[:：]?\d*[\)）]/g, ""); 
+                    raw = raw.replace(/址$/, ""); // 移除尾部的址
+                    raw = raw.replace(/^址/, ""); // 移除開頭的址
+                    contactAddress = raw.trim();
                 }
 
                 // --- 填入表單 ---
@@ -224,7 +235,7 @@
                 document.getElementById('contact_address').value = contactAddress;
 
                 if (userName) {
-                    alert(`解析成功！\n\n身分：${paymentVal === "0" ? "第一類" : (paymentVal === "75" ? "第二類" : "第三類")}\n戶籍：${householdAddress || "未抓到"}\n通訊：${contactAddress || "未抓到"}`);
+                    alert(`解析成功！\n\n身分：${paymentVal == "0" ? "第一類" : (paymentVal == "75" ? "第二類" : "第三類")}\n簽約人：${contractorName}`);
                 } else {
                     alert("解析完成但未找到姓名，請確認 PDF 格式。");
                 }
