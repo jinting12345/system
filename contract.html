@@ -153,19 +153,23 @@
                 // --- 1. 個案姓名與身分證 ---
                 let userName = "";
                 let userId = "";
-                const headerMatch = cleanText.match(/個案姓名\/身分證字號[::]?([^\/]+)\/([A-Z][0-9]{9})/);
+                const headerMatch = cleanText.match(/個案姓名\/身分證字號[:：]?([^\/]+)\/([A-Z][0-9]{9})/);
                 if (headerMatch) {
-                    let tempName = headerMatch[1].trim();
+                    let tempName = headerMatch[1]
+                        .replace(/[:：]/g, "")  // 移除冒號
+                        .trim();
                     if (tempName && tempName.length > 1 && !tempName.includes("/")) userName = tempName;
                     userId = headerMatch[2].trim();
                     showDebug("✓ 姓名: " + userName + ", 身分證: " + userId);
                 }
 
                 // 備用姓名抓取
-                if (!userName || userName === "/") {
-                     const backupNameMatch = fullText.match(/個案姓名[::]?\s*([^\s]+)/);
+                if (!userName || userName === "/" || userName.startsWith(":") || userName.startsWith("：")) {
+                     const backupNameMatch = fullText.match(/個案姓名[:：]?\s*([^\s\/]+)/);
                      if (backupNameMatch) {
-                         let temp = backupNameMatch[1].trim();
+                         let temp = backupNameMatch[1]
+                             .replace(/[:：]/g, "")
+                             .trim();
                          if (!temp.includes("傳統姓名") && !temp.includes("個案") && temp.length > 1) {
                              userName = temp;
                              showDebug("✓ 備用姓名: " + userName);
