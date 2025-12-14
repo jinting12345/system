@@ -6,19 +6,20 @@
     <title>系統選單</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { font-family: sans-serif; background: #f8f9fa; margin: 0; padding: 20px; }
+        body { font-family: "Microsoft JhengHei", sans-serif; background: #f8f9fa; margin: 0; padding: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 0 10px; }
-        h2 { margin: 0; color: #333; }
-        .logout-btn { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; }
+        h2 { margin: 0; color: #333; font-weight: bold; }
+        .logout-btn { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: 0.3s; }
+        .logout-btn:hover { background: #bb2d3b; }
         
         .container { max-width: 800px; margin: 0 auto; }
-        .group-title { color: #666; border-bottom: 2px solid #ddd; padding-bottom: 5px; margin: 30px 0 15px 0; font-weight: bold; }
+        .group-title { color: #555; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin: 30px 0 15px 0; font-weight: bold; font-size: 1.1em; }
         
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
-        .card { background: white; padding: 20px; border-radius: 8px; text-align: center; text-decoration: none; color: #333; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100px; }
-        .card:hover { transform: translateY(-3px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border: 1px solid #1a73e8; }
-        .icon { font-size: 32px; margin-bottom: 8px; }
-        .card.disabled { background: #eee; color: #999; cursor: not-allowed; pointer-events: none; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
+        .card { background: white; padding: 20px; border-radius: 8px; text-align: center; text-decoration: none; color: #333; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 110px; }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #1a73e8; color: #1a73e8; }
+        .icon { font-size: 36px; margin-bottom: 10px; }
+        .card.disabled { background: #eee; color: #aaa; cursor: not-allowed; pointer-events: none; box-shadow: none; }
     </style>
 </head>
 <body>
@@ -28,7 +29,6 @@
             <button onclick="handleLogout()" class="logout-btn">登出</button>
         </div>
 
-        <!-- 1. 膳管組 -->
         <div class="group-title">🍱 膳管組</div>
         <div class="grid">
             <a href="bento.html" class="card">
@@ -39,22 +39,20 @@
                 <span class="icon">📋</span>
                 <span>查看照片上傳紀錄</span>
             </a>
-            <a href="#" class="card" onclick="alert('開發中')">
+            <a href="#" class="card" onclick="alert('開發中功能')">
                 <span class="icon">🌡️</span>
-                <span>餐車溫度</span>
+                <span>餐車溫度 (開發中)</span>
             </a>
         </div>
 
-        <!-- 2. 臨床組 (已更新) -->
         <div class="group-title">🩺 臨床組</div>
         <div class="grid">
             <a href="contract.html" class="card">
                 <span class="icon">📝</span>
-                <span>長照契約書自動產生</span>
+                <span>長照契約書產生器</span>
             </a>
         </div>
 
-        <!-- 3. 教研組 -->
         <div class="group-title">🎓 教研組</div>
         <div class="grid">
             <div class="card disabled">
@@ -63,14 +61,12 @@
             </div>
         </div>
 
-        <!-- 4. 共用區 -->
         <div class="group-title">⚙️ 共用區</div>
         <div class="grid">
             <a href="upload_schedule.html" class="card">
                 <span class="icon">📅</span>
                 <span>班表上傳 (Excel)</span>
             </a>
-            <!-- 我幫您把查看班表補回來了，這樣才完整 -->
             <a href="view_schedule.html" class="card">
                 <span class="icon">👁️</span>
                 <span>查看班表</span>
@@ -80,22 +76,25 @@
 
     <script>
         function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
-        // 您的 URL 和 KEY 保持不變
+        
+        // Supabase 設定
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
-        const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
+        const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; // 假設這是你的 Key，請確認是否完整
         const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
 
         async function handleLogout() {
-            await supabase.auth.signOut();
+            const { error } = await supabase.auth.signOut();
+            if (error) console.error('登出錯誤:', error);
             window.location.href = 'index.html';
         }
         
-        // 登入檢查
+        // 登入檢查：如果沒有 session 就踢回登入頁
         (async () => {
             const { data } = await supabase.auth.getSession();
-            if(!data.session) window.location.href = 'index.html';
+            if(!data.session) {
+                window.location.href = 'index.html';
+            }
         })();
     </script>
 </body>
 </html>
-
