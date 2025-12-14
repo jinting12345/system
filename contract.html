@@ -3,90 +3,115 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約產生器 (JS版)</title>
+    <title>長照合約產生器 (PDF自動版)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background-color: #f9f9f9; }
+        .section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { margin-top: 0; color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
         .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; }
-        input, select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        .btn-submit { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; }
-        .btn-submit:hover { background-color: #0056b3; }
-        .btn-submit:disabled { background-color: #ccc; cursor: not-allowed; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
+        
+        /* 按鈕樣式 */
+        .btn { color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; transition: 0.3s; margin-top: 10px; }
+        .btn-primary { background-color: #007bff; }
+        .btn-primary:hover { background-color: #0056b3; }
+        .btn-success { background-color: #28a745; }
+        .btn-success:hover { background-color: #218838; }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* PDF 上傳區塊 */
+        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 8px; background: #f8f9fa; }
+        .upload-area:hover { border-color: #007bff; background: #e9ecef; }
     </style>
 </head>
 <body>
 
-    <h2>步驟 2：確認並修改資料</h2>
-
-    <div class="form-group">
-        <label>個案姓名</label>
-        <input type="text" id="user_name" value="測試個案">
+    <div class="section">
+        <h2>步驟 1：上傳 PDF 自動帶入資料</h2>
+        <div class="upload-area">
+            <p>請選擇個案的 PDF 評估檔案，系統將自動擷取資料。</p>
+            <input type="file" id="pdf_upload" accept="application/pdf" />
+            <button class="btn btn-primary" onclick="parsePDF()">📂 讀取 PDF 資料</button>
+        </div>
     </div>
 
-    <div class="form-group">
-        <label>身分證字號</label>
-        <input type="text" id="user_id" value="S201821350">
-    </div>
+    <div class="section">
+        <h2>步驟 2：確認並修改資料</h2>
 
-    <div class="form-group">
-        <label>個案電話</label>
-        <input type="text" id="user_phone" value="0913935315">
-    </div>
+        <div class="form-group">
+            <label>個案姓名</label>
+            <input type="text" id="user_name" placeholder="等待讀取..." />
+        </div>
 
-    <div class="form-group">
-        <label>部分負擔 (元)</label>
-        <select id="payment">
-            <option value="240">240 (第三類/一般)</option>
-            <option value="75">75 (第二類/中低收)</option>
-            <option value="0">0 (第一類/低收)</option>
-        </select>
-    </div>
+        <div class="form-group">
+            <label>身分證字號</label>
+            <input type="text" id="user_id" placeholder="等待讀取..." />
+        </div>
 
-    <div class="form-group">
-        <label>簽約人姓名</label>
-        <input type="text" id="contractor_name" value="測試個案">
-    </div>
+        <div class="form-group">
+            <label>個案電話</label>
+            <input type="text" id="user_phone" placeholder="等待讀取..." />
+        </div>
 
-    <div class="form-group">
-        <label>簽約人電話</label>
-        <input type="text" id="contractor_phone" value="0913935315">
-    </div>
+        <div class="form-group">
+            <label>部分負擔 (元)</label>
+            <select id="payment">
+                <option value="240">240 (第三類/一般)</option>
+                <option value="75">75 (第二類/中低收)</option>
+                <option value="0">0 (第一類/低收)</option>
+            </select>
+        </div>
 
-    <div class="form-group">
-        <label>戶籍地址</label>
-        <input type="text" id="household_address" value="高雄市範例區範例路123號">
-    </div>
+        <div class="form-group">
+            <label>簽約人姓名</label>
+            <input type="text" id="contractor_name" placeholder="預設同個案" />
+        </div>
 
-    <div class="form-group">
-        <label>通訊地址</label>
-        <input type="text" id="contact_address" value="高雄市梓官區梓官路534號">
-    </div>
+        <div class="form-group">
+            <label>簽約人電話</label>
+            <input type="text" id="contractor_phone" placeholder="預設同個案" />
+        </div>
 
-    <div class="form-group">
-        <label>訪視日期 (預設今日)</label>
-        <input type="text" id="visit_date">
-    </div>
+        <div class="form-group">
+            <label>戶籍地址</label>
+            <input type="text" id="household_address" placeholder="等待讀取..." />
+        </div>
 
-    <button class="btn-submit" onclick="generateWord()">📝 下載 Word 契約書</button>
+        <div class="form-group">
+            <label>通訊地址</label>
+            <input type="text" id="contact_address" placeholder="等待讀取..." />
+        </div>
+
+        <div class="form-group">
+            <label>訪視日期 (預設今日)</label>
+            <input type="text" id="visit_date">
+        </div>
+
+        <button class="btn btn-success" onclick="generateWord()">📝 下載 Word 契約書</button>
+    </div>
 
     <script>
-        // ================= 設定區 (請修改這裡) =================
+        // ================= 設定區 (請確認這裡是否正確) =================
         const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co'; 
-        const SUPABASE_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; 
-        const BUCKET_NAME = 'system_files';  // 你的 Bucket 名稱
-        const TEMPLATE_NAME = 'template.docx'; // 你的範本檔名
-        // =====================================================
+        const SUPABASE_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; // 請確認您的 Key
+        const BUCKET_NAME = 'system_files'; 
+        const TEMPLATE_NAME = 'template.docx';
+        
+        // 設定 PDF.js Worker
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+        // =============================================================
 
-        // 初始化 Supabase
         const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // 初始化日期 (自動帶入今天)
+        // 初始化日期
         window.onload = function() {
             const today = new Date();
             const rocYear = today.getFullYear() - 1911;
@@ -94,54 +119,153 @@
             document.getElementById('visit_date').value = dateStr;
         };
 
-        // 計算結束日期 (訪視日 + 3個月)
+        // --- 功能 A: 解析 PDF ---
+        async function parsePDF() {
+            const fileInput = document.getElementById('pdf_upload');
+            const btn = document.querySelector('button[onclick="parsePDF()"]');
+            
+            if (fileInput.files.length === 0) {
+                alert("請先選擇 PDF 檔案！");
+                return;
+            }
+
+            btn.innerText = "處理中...";
+            btn.disabled = true;
+
+            try {
+                const file = fileInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                
+                let fullText = "";
+                let page1Text = "";
+                let page13Text = "";
+
+                // 讀取每一頁文字
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    const pageStr = textContent.items.map(item => item.str).join(" ");
+                    fullText += pageStr + "\n";
+                    if (i === 1) page1Text = pageStr;
+                    if (i === 13) page13Text = pageStr;
+                }
+
+                console.log("PDF 讀取完成");
+
+                // --- 正規表達式抓取資料 (與 Python 邏輯對應) ---
+                
+                // 1. 姓名
+                let userName = "";
+                const nameMatch = fullText.match(/個案姓名[:：]?\s*([^\s/]+)/);
+                if (nameMatch) userName = nameMatch[1].trim();
+
+                // 2. 身分證
+                let userId = "";
+                const idMatch = fullText.match(/([A-Z][0-9]{9})/);
+                if (idMatch) userId = idMatch[1].trim();
+
+                // 3. 電話
+                let userPhone = "";
+                const phoneMatch = fullText.match(/(09\d{8}|0\d{1,2}-?\d{6,8})/);
+                if (phoneMatch) userPhone = phoneMatch[0].trim();
+
+                // 4. 地址
+                let householdAddress = "";
+                const hMatch = fullText.match(/戶籍地址\s+([^\n※]+)/);
+                if (hMatch) householdAddress = hMatch[1].trim();
+
+                let contactAddress = "";
+                const cMatch = fullText.match(/居住\(通訊\)地\s+(.+?)(\s|$)/);
+                if (cMatch) {
+                    let raw = cMatch[1].replace("址", "").trim();
+                    contactAddress = raw.replace(/\(郵遞區號[:：].*?\)/, "").trim();
+                }
+
+                // 5. 判斷費用 (先找第1頁，再找第13頁)
+                let paymentVal = "240"; 
+                const levelRegex = /(第\s*[一二三]\s*類)/;
+                let wMatch = page1Text.match(levelRegex);
+                if (!wMatch && page13Text) wMatch = page13Text.match(levelRegex);
+
+                if (wMatch) {
+                    const txt = wMatch[1].replace(/\s/g, "");
+                    if (txt.includes("第一類")) paymentVal = "0";
+                    else if (txt.includes("第二類")) paymentVal = "75";
+                    else if (txt.includes("第三類")) paymentVal = "240";
+                }
+
+                // 6. 代理人
+                let contractorName = userName;
+                let contractorPhone = userPhone;
+                const agentMatch = fullText.match(/代理人姓名\s+([^\s]+)/);
+                if (agentMatch && agentMatch[1].length > 1) {
+                    contractorName = agentMatch[1].trim();
+                    const agentPhoneMatch = fullText.match(/代理人手機\s*(09\d{8})/);
+                    if (agentPhoneMatch) contractorPhone = agentPhoneMatch[1].trim();
+                }
+
+                // --- 填入網頁表單 ---
+                document.getElementById('user_name').value = userName;
+                document.getElementById('user_id').value = userId;
+                document.getElementById('user_phone').value = userPhone;
+                document.getElementById('payment').value = paymentVal;
+                document.getElementById('contractor_name').value = contractorName;
+                document.getElementById('contractor_phone').value = contractorPhone;
+                document.getElementById('household_address').value = householdAddress;
+                document.getElementById('contact_address').value = contactAddress;
+
+                alert("資料已自動帶入！請檢查內容是否正確。");
+
+            } catch (err) {
+                console.error(err);
+                alert("讀取 PDF 失敗：" + err.message);
+            } finally {
+                btn.innerText = "📂 讀取 PDF 資料";
+                btn.disabled = false;
+            }
+        }
+
+        // --- 功能 B: 計算日期 ---
         function calculateEndDate(visitDateStr) {
             if (!visitDateStr) return "";
-            
-            // 解析 "114年12月14日"
             const match = visitDateStr.match(/^(\d{2,3})年(\d{1,2})月(\d{1,2})日$/);
             if (!match) return "日期格式錯誤";
 
-            let year = parseInt(match[1]) + 1911; // 轉西元
+            let year = parseInt(match[1]) + 1911;
             let month = parseInt(match[2]);
             let day = parseInt(match[3]);
 
-            // 加 3 個月
             let newMonth = month + 3;
             let newYear = year;
-
             if (newMonth > 12) {
                 newYear += 1;
                 newMonth -= 12;
             }
-
-            // 處理日期 (例如 2/30 不存在，要變成 2/28)
             const lastDayOfNewMonth = new Date(newYear, newMonth, 0).getDate();
             const newDay = Math.min(day, lastDayOfNewMonth);
 
             return `${newYear - 1911}年${newMonth}月${newDay}日`;
         }
 
-        // 核心功能：產生 Word
+        // --- 功能 C: 下載 Word ---
         async function generateWord() {
-            const btn = document.querySelector('.btn-submit');
+            const btn = document.querySelector('.btn-success');
             const originalText = btn.innerText;
-            btn.innerText = "⏳ 下載範本並處理中...";
+            btn.innerText = "⏳ 處理中...";
             btn.disabled = true;
 
             try {
-                // 1. 從 Supabase 下載範本
+                // 1. 下載範本
                 const { data: fileData, error } = await supabase
                     .storage
                     .from(BUCKET_NAME)
                     .download(TEMPLATE_NAME);
 
-                if (error) throw new Error("下載範本失敗: " + error.message + " (請檢查 Supabase Policy)");
+                if (error) throw new Error("下載範本失敗: " + error.message);
 
                 // 2. 準備資料
                 const visitDate = document.getElementById('visit_date').value;
-                const endDate = calculateEndDate(visitDate);
-                
                 const templateData = {
                     user_name: document.getElementById('user_name').value,
                     user_id: document.getElementById('user_id').value,
@@ -152,12 +276,10 @@
                     household_address: document.getElementById('household_address').value,
                     contact_address: document.getElementById('contact_address').value,
                     visit_date: visitDate,
-                    end_date: endDate
+                    end_date: calculateEndDate(visitDate)
                 };
 
-                console.log("寫入資料:", templateData);
-
-                // 3. 讀取並渲染 Word
+                // 3. 產生 Word
                 const arrayBuffer = await fileData.arrayBuffer();
                 const zip = new PizZip(arrayBuffer);
                 const doc = new window.docxtemplater(zip, {
@@ -165,10 +287,8 @@
                     linebreaks: true,
                 });
 
-                // 填入資料
                 doc.render(templateData);
 
-                // 4. 輸出並下載
                 const blob = doc.getZip().generate({
                     type: "blob",
                     mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -176,12 +296,10 @@
 
                 const fileName = `義大醫院契約書_${templateData.user_name}.docx`;
                 saveAs(blob, fileName);
-                
-                alert("下載成功！");
 
             } catch (err) {
+                alert("錯誤: " + err.message);
                 console.error(err);
-                alert("發生錯誤: " + err.message);
             } finally {
                 btn.innerText = originalText;
                 btn.disabled = false;
