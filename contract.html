@@ -3,17 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約產生器</title>
+    <title>長照合約產生器 (離線安全版)</title>
     
-    <!-- 1. 引入 Supabase -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-    
-    <!-- 2. 引入 Word 生成核心 (解決 PizZip is not defined 問題) -->
+    <!-- 引入 Word 生成核心 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pizzip/3.1.4/pizzip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    
-    <!-- 3. 引入 PDF 解析 -->
+    <!-- 引入 PDF 解析 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
     <style>
@@ -27,22 +23,23 @@
         .btn-primary { background-color: #3498db; }
         .btn-success { background-color: #27ae60; }
         .btn:disabled { background-color: #95a5a6; cursor: not-allowed; }
-        .upload-area { border: 3px dashed #bdc3c7; padding: 30px; text-align: center; border-radius: 12px; background: #ecf0f1; }
+        .upload-area { border: 3px dashed #bdc3c7; padding: 30px; text-align: center; border-radius: 12px; background: #ecf0f1; margin-bottom: 15px; }
+        .file-label { display: block; margin-bottom: 10px; color: #666; }
     </style>
 </head>
 <body>
 
     <div class="section">
-        <h2>步驟 1: 上傳 PDF</h2>
+        <h2>步驟 1: 上傳 PDF 進行解析</h2>
         <div class="upload-area">
-            <p style="font-size: 1.2em; color: #7f8c8d;">請上傳「照顧管理評估量表」PDF</p>
+            <span class="file-label">1. 選擇「照顧管理評估量表」PDF：</span>
             <input type="file" id="pdf_upload" accept="application/pdf" />
-            <button class="btn btn-primary" onclick="parsePDF()">🔍 解析 PDF</button>
+            <button class="btn btn-primary" onclick="parsePDF()">🔍 解析 PDF 資料</button>
         </div>
     </div>
 
     <div class="section">
-        <h2>步驟 2: 確認資料並生成 Word</h2>
+        <h2>步驟 2: 確認資料 & 選擇合約範本</h2>
         <div class="form-group"><label>個案姓名</label><input type="text" id="user_name" /></div>
         <div class="form-group"><label>身分證字號</label><input type="text" id="user_id" /></div>
         <div class="form-group"><label>個案電話</label><input type="text" id="user_phone" /></div>
@@ -68,20 +65,18 @@
         </div>
 
         <div class="form-group"><label>訪視日期</label><input type="text" id="visit_date"></div>
-        <button class="btn btn-success" onclick="generateWord()">☁️ 從 Supabase 下載並生成 Word</button>
+
+        <hr style="margin: 30px 0; border: 0; border-top: 1px solid #ccc;">
+
+        <div class="upload-area" style="background: #e8f8f5; border-color: #27ae60;">
+            <span class="file-label" style="color: #27ae60; font-weight: bold;">2. 請選擇電腦中的「Word 合約範本 (.docx)」：</span>
+            <input type="file" id="template_upload" accept=".docx" />
+            <button class="btn btn-success" onclick="generateWord()">📄 生成契約書</button>
+        </div>
     </div>
 
     <script>
-        // ================= Supabase 設定區 =================
-        // 請確認這些是您目前的專案設定
-        const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co'; 
-        const SUPABASE_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; 
-        const BUCKET_NAME = 'system_files'; 
-        const TEMPLATE_NAME = 'template.docx'; // 您的 Word 範本檔名
-        
-        // 初始化 Supabase
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-        // 設定 PDF.js worker
+        // 設定 PDF worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
         window.onload = function() {
@@ -90,7 +85,7 @@
             document.getElementById('visit_date').value = `${rocYear}年${today.getMonth() + 1}月${today.getDate()}日`;
         };
 
-        // ================= PDF 解析邏輯 (成功版) =================
+        // 清洗函數
         function cleanTextDeep(text) {
             return text
                 .replace(/※/g, "")
@@ -100,6 +95,7 @@
                 .replace(/[\s\n\r]/g, "");
         }
 
+        // 地址提取
         function extractAddressFromChunk(chunk) {
             const regex = /([台臺]?[^0-9\s]{2,3}[縣市].*?[號樓])/;
             const match = chunk.match(regex);
@@ -109,6 +105,7 @@
             return "";
         }
 
+        // ================= 解析 PDF 邏輯 =================
         async function parsePDF() {
             const fileInput = document.getElementById('pdf_upload');
             const btn = document.querySelector('button[onclick="parsePDF()"]');
@@ -136,17 +133,20 @@
                 
                 const cleanText = cleanTextDeep(fullText);
 
-                // 解析資料...
+                // 基本欄位
                 let userName = "", userId = "", userPhone = "", paymentVal = "240";
                 const headerMatch = cleanText.match(/姓名\/身分證字號[:：]?([^\/]+)\/([A-Z][0-9]{9})/);
                 if (headerMatch) { userName = headerMatch[1].replace(/[:：]/g, ""); userId = headerMatch[2]; }
+                
                 const phoneMatch = cleanText.match(/個案電話.*?((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
                 if (phoneMatch) userPhone = phoneMatch[1];
+
                 const welfareMatch = cleanText.match(/長照福利.*?(第[一二三]類)/);
                 if (welfareMatch) {
                     if (welfareMatch[1].includes("一")) paymentVal = "0";
                     else if (welfareMatch[1].includes("二")) paymentVal = "75";
                 }
+
                 let contractorName = userName;
                 let contractorPhone = userPhone;
                 let agentMatch = cleanText.match(/代理人姓名(.*?)代理人身分證/);
@@ -158,7 +158,7 @@
                 const agentPhoneMatch = cleanText.match(/(?:代理人|聯絡人)手機[::]?.*?((09\d{8}))/);
                 if (agentPhoneMatch) contractorPhone = agentPhoneMatch[1];
 
-                // 解析地址
+                // 地址解析 (終極邏輯)
                 let hAddr = "";
                 let cAddr = "";
                 const idxHouse = cleanText.indexOf("戶籍地址");
@@ -208,8 +208,9 @@
 
             } catch (err) {
                 alert("錯誤: " + err.message);
+                console.error(err);
             } finally {
-                btn.innerText = "🔍 解析 PDF";
+                btn.innerText = "🔍 解析 PDF 資料";
                 btn.disabled = false;
             }
         }
@@ -221,4 +222,73 @@
             let year = parseInt(match[1]) + 1911;
             let month = parseInt(match[2]);
             let day = parseInt(match[3]);
-            let newMonth
+            let newMonth = month + 3;
+            let newYear = year;
+            if (newMonth > 12) { newYear += 1; newMonth -= 12; }
+            const lastDayOfNewMonth = new Date(newYear, newMonth, 0).getDate();
+            const newDay = Math.min(day, lastDayOfNewMonth);
+            return `${newYear - 1911}年${newMonth}月${newDay}日`;
+        }
+
+        // ================= Word 生成邏輯 (離線版) =================
+        async function generateWord() {
+            const templateInput = document.getElementById('template_upload');
+            const btn = document.querySelector('.btn-success');
+            
+            if (templateInput.files.length === 0) {
+                alert("請先選擇您的 Word 合約範本 (.docx)！");
+                return;
+            }
+
+            const originalText = btn.innerText;
+            btn.innerText = "⏳ 處理中...";
+            btn.disabled = true;
+
+            try {
+                // 1. 讀取本地的 Word 範本
+                const file = templateInput.files[0];
+                const arrayBuffer = await file.arrayBuffer();
+
+                // 2. 準備資料
+                const visitDate = document.getElementById('visit_date').value;
+                const templateData = {
+                    user_name: document.getElementById('user_name').value,
+                    user_id: document.getElementById('user_id').value,
+                    user_phone: document.getElementById('user_phone').value,
+                    payment: document.getElementById('payment').value,
+                    contractor_name: document.getElementById('contractor_name').value,
+                    contractor_phone: document.getElementById('contractor_phone').value,
+                    household_address: document.getElementById('household_address').value,
+                    contact_address: document.getElementById('contact_address').value,
+                    visit_date: visitDate,
+                    end_date: calculateEndDate(visitDate)
+                };
+
+                // 3. 渲染 Word
+                const zip = new PizZip(arrayBuffer);
+                const doc = new window.docxtemplater(zip, {
+                    paragraphLoop: true,
+                    linebreaks: true,
+                });
+
+                doc.render(templateData);
+
+                // 4. 下載
+                const blob = doc.getZip().generate({
+                    type: "blob",
+                    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                });
+
+                saveAs(blob, `義大醫院契約書_${templateData.user_name}.docx`);
+                
+            } catch (err) {
+                alert("生成失敗: " + err.message);
+                console.error(err);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
