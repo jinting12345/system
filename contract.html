@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約產生器 (支援市話版)</title>
+    <title>長照合約產生器 (精準修正版)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
@@ -108,7 +108,7 @@
             document.getElementById('visit_date').value = dateStr;
         };
 
-        // ★★★ 核心修正：支援市話與手機 ★★★
+        // ★★★ 核心修正：地址與身分判斷邏輯 ★★★
         async function parsePDF() {
             const fileInput = document.getElementById('pdf_upload');
             const btn = document.querySelector('button[onclick="parsePDF()"]');
@@ -134,7 +134,7 @@
                     fullText += pageStr + "\n";
                 }
 
-                // 製作乾淨字串
+                // 製作乾淨字串 (去除所有空白與標點，用於精準搜尋)
                 const cleanText = fullText.replace(/[\s,"'\[\]]/g, "");
                 
                 // --- 1. 個案姓名與身分證 ---
@@ -146,10 +146,8 @@
                     userId = headerMatch[2].trim();
                 }
 
-                // --- 2. 個案電話 (修正：支援 09 或 0x 開頭) ---
+                // --- 2. 電話 (手機或市話) ---
                 let userPhone = "";
-                // 邏輯：找 "個案電話" 後面接的：
-                // (09xxxxxxxx) 或 (0x-xxxxxxx) 或 (0xxxxxxxxx)
                 const phoneMatch = cleanText.match(/個案電話.*?((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
                 if (phoneMatch) {
                     userPhone = phoneMatch[1];
@@ -163,41 +161,57 @@
                 if (agentNameMatch) {
                     contractorName = agentNameMatch[1].trim();
                 }
-
-                // 代理人電話：先找手機，沒找到再找電話(市話)
                 const agentMobileMatch = cleanText.match(/代理人手機((09\d{8}))/);
-                const agentTelMatch = cleanText.match(/代理人電話.*?((0\d{1,2}-?\d{6,8}))/);
+                if (agentMobileMatch) contractorPhone = agentMobileMatch[1];
 
-                if (agentMobileMatch) {
-                    contractorPhone = agentMobileMatch[1];
-                } else if (agentTelMatch) {
-                    contractorPhone = agentTelMatch[1];
-                }
-
-                // 預設值回填
                 if (!contractorName || contractorName.length < 2) contractorName = userName;
                 if (!contractorPhone) contractorPhone = userPhone;
 
-                // --- 4. 地址解析 ---
+                // --- 4. 地址解析 (使用特徵點搜尋) ---
                 let householdAddress = "";
                 let contactAddress = "";
 
-                const hMatch = fullText.match(/戶籍地址\s*([\s\S]*?)※/);
-                if (hMatch) householdAddress = hMatch[1].replace(/[\n\r]/g, "").trim();
-
-                const cMatch = fullText.match(/居住\(通訊\)地\s*([\s\S]*?)※/);
-                if (cMatch) {
-                    let raw = cMatch[1].replace(/[\n\r]/g, ""); 
-                    raw = raw.replace("址", ""); 
-                    raw = raw.replace(/\(郵遞區號[:：]?\d*\)/g, ""); 
-                    contactAddress = raw.trim();
+                // (A) 戶籍地址：尋找 "戶籍地址" 到 "※" 之間的內容
+                // cleanText 裡會是 "戶籍地址高雄市..." 
+                const hMatch = cleanText.match(/戶籍地址(.*?)(※|\(里)/);
+                if (hMatch) {
+                    householdAddress = hMatch[1].trim();
                 }
 
-                // --- 5. 費用等級 ---
-                let paymentVal = "240";
-                if (cleanText.includes("第一類")) paymentVal = "0";
-                else if (cleanText.includes("第二類")) paymentVal = "75";
-                else if (cleanText.includes("第三類")) paymentVal = "240";
+                // (B) 通訊地址：尋找 "居住(通訊)地" 到 "※" 之間的內容
+                // Regex 說明：
+                // 居住\(?通訊\)?地  -> 容許括號可能被吃掉
+                // [址]?            -> 容許 "址" 字存在或不存在
+                // (.*?)            -> 抓取地址本體
+                // (※|\(里)        -> 遇到 "※" 或 "(里" 就停止
+                const cMatch = cleanText.match(/居住\(?通訊\)?地[址]?(.*?)(※|\(里)/);
+                if (cMatch) {
+                    let rawAddr = cMatch[1];
+                    // 移除常見雜訊：(郵遞區號:826) 或單獨的 "址"
+                    rawAddr = rawAddr.replace(/[\(（]郵遞區號[:：]?\d*[\)）]/g, ""); 
+                    rawAddr = rawAddr.replace(/^址/, ""); 
+                    contactAddress = rawAddr.trim();
+                }
+
+                // --- 5. 費用等級 (修正判斷邏輯) ---
+                // 不再全文搜尋，而是鎖定 "長照福利" 關鍵字後面
+                let paymentVal = "240"; // 預設第三類
+
+                // 搜尋模式： "長照福利" 或 "身份說明" 後面接 "第X類"
+                // 這樣可以避開 PDF 內文中列出的所有選項 (如 1.第一類 2.第二類...)
+                const welfareMatch = cleanText.match(/長照福利.*?身.*?分.*?說明.*?(第[一二三]類)/) || cleanText.match(/長照福利.*?(第[一二三]類)/);
+
+                if (welfareMatch) {
+                    const level = welfareMatch[1];
+                    if (level.includes("第一類")) paymentVal = "0";
+                    else if (level.includes("第二類")) paymentVal = "75";
+                    else if (level.includes("第三類")) paymentVal = "240";
+                } else {
+                    // 備用：如果都沒抓到，才退回全文搜尋 (但要小心)
+                    if (cleanText.includes("福利身分說明第三類") || cleanText.includes("長照福利第三類")) paymentVal = "240";
+                    else if (cleanText.includes("福利身分說明第二類") || cleanText.includes("長照福利第二類")) paymentVal = "75";
+                    else if (cleanText.includes("福利身分說明第一類") || cleanText.includes("長照福利第一類")) paymentVal = "0";
+                }
 
                 // --- 填入表單 ---
                 document.getElementById('user_name').value = userName;
@@ -210,7 +224,7 @@
                 document.getElementById('contact_address').value = contactAddress;
 
                 if (userName) {
-                    alert(`解析成功！\n\n簽約人：${contractorName}\n電話：${userPhone || "未找到"}`);
+                    alert(`解析成功！\n\n身分：${paymentVal === "0" ? "第一類" : (paymentVal === "75" ? "第二類" : "第三類")}\n戶籍：${householdAddress || "未抓到"}\n通訊：${contactAddress || "未抓到"}`);
                 } else {
                     alert("解析完成但未找到姓名，請確認 PDF 格式。");
                 }
@@ -224,7 +238,7 @@
             }
         }
 
-        // --- 其他功能維持不變 ---
+        // --- 輔助功能 ---
         function calculateEndDate(visitDateStr) {
             if (!visitDateStr) return "";
             const match = visitDateStr.match(/^(\d{2,3})年(\d{1,2})月(\d{1,2})日$/);
