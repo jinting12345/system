@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約產生器 (深度除錯版)</title>
+    <title>長照合約產生器 (絕對修正版)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
@@ -12,52 +12,58 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background-color: #f9f9f9; }
-        .section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        h2 { margin-top: 0; color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
-        .form-group { margin-bottom: 15px; }
-        label { display: block; font-weight: bold; margin-bottom: 5px; color: #555; }
-        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 16px; }
-        .btn { color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; width: 100%; transition: 0.3s; margin-top: 10px; }
-        .btn-primary { background-color: #007bff; }
-        .btn-success { background-color: #28a745; }
-        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
-        .upload-area { border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 8px; background: #f8f9fa; }
-        /* 加大除錯視窗，方便閱讀 */
-        .debug { margin-top: 20px; padding: 15px; background: #333; color: #0f0; border-radius: 4px; font-size: 14px; max-height: 400px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; }
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; background-color: #f4f4f4; }
+        .section { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { margin-top: 0; color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 15px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #34495e; font-size: 1.1em; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        .btn { color: white; padding: 14px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; width: 100%; transition: 0.2s; margin-top: 10px; font-weight: bold; }
+        .btn-primary { background-color: #3498db; }
+        .btn-success { background-color: #27ae60; }
+        .btn:disabled { background-color: #95a5a6; cursor: not-allowed; }
+        .upload-area { border: 3px dashed #bdc3c7; padding: 30px; text-align: center; border-radius: 12px; background: #ecf0f1; }
     </style>
 </head>
 <body>
 
     <div class="section">
-        <h2>步驟 1:上傳 PDF (深度除錯模式)</h2>
+        <h2>步驟 1: 上傳 PDF</h2>
         <div class="upload-area">
-            <p>請上傳 PDF，並觀察下方黑色視窗的輸出</p>
+            <p style="font-size: 1.2em; color: #7f8c8d;">請上傳「照顧管理評估量表」PDF</p>
             <input type="file" id="pdf_upload" accept="application/pdf" />
-            <button class="btn btn-primary" onclick="parsePDF()">📂 讀取並檢測</button>
+            <button class="btn btn-primary" onclick="parsePDF()">🔍 解析 PDF</button>
         </div>
-        <div id="debug" class="debug">等待執行...</div>
     </div>
 
     <div class="section">
-        <h2>步驟 2:確認資料</h2>
-        <div class="form-group"><label>個案姓名</label><input type="text" id="user_name"></div>
-        <div class="form-group"><label>身分證字號</label><input type="text" id="user_id"></div>
-        <div class="form-group"><label>個案電話</label><input type="text" id="user_phone"></div>
+        <h2>步驟 2: 確認資料</h2>
+        <div class="form-group"><label>個案姓名</label><input type="text" id="user_name" /></div>
+        <div class="form-group"><label>身分證字號</label><input type="text" id="user_id" /></div>
+        <div class="form-group"><label>個案電話</label><input type="text" id="user_phone" /></div>
         <div class="form-group">
             <label>部分負擔</label>
             <select id="payment">
-                <option value="240">240 (第三類)</option>
-                <option value="75">75 (第二類)</option>
-                <option value="0">0 (第一類)</option>
+                <option value="240">240 (第三類/一般)</option>
+                <option value="75">75 (第二類/中低收)</option>
+                <option value="0">0 (第一類/低收)</option>
             </select>
         </div>
-        <div class="form-group"><label>簽約人姓名</label><input type="text" id="contractor_name"></div>
-        <div class="form-group"><label>簽約人電話</label><input type="text" id="contractor_phone"></div>
-        <div class="form-group"><label>戶籍地址</label><input type="text" id="household_address"></div>
-        <div class="form-group"><label>通訊地址</label><input type="text" id="contact_address"></div>
+        <div class="form-group"><label>簽約人姓名</label><input type="text" id="contractor_name" /></div>
+        <div class="form-group"><label>簽約人電話</label><input type="text" id="contractor_phone" /></div>
+        
+        <div class="form-group">
+            <label style="color:red;">戶籍地址</label>
+            <input type="text" id="household_address" />
+        </div>
+
+        <div class="form-group">
+            <label style="color:red;">通訊地址</label>
+            <input type="text" id="contact_address" />
+        </div>
+
         <div class="form-group"><label>訪視日期</label><input type="text" id="visit_date"></div>
-        <button class="btn btn-success" onclick="generateWord()">📝 下載 Word</button>
+        <button class="btn btn-success" onclick="generateWord()">📄 生成並下載契約書</button>
     </div>
 
     <script>
@@ -75,28 +81,40 @@
             document.getElementById('visit_date').value = `${rocYear}年${today.getMonth() + 1}月${today.getDate()}日`;
         };
 
-        function showDebug(msg) {
-            const debugDiv = document.getElementById('debug');
-            debugDiv.style.display = 'block';
-            // 加上時間戳記，方便看順序
-            const time = new Date().toLocaleTimeString();
-            debugDiv.innerHTML += `[${time}] ${msg}\n`;
-            debugDiv.scrollTop = debugDiv.scrollHeight;
+        // 清洗函數：移除所有干擾符號
+        function cleanTextDeep(text) {
+            return text
+                .replace(/※/g, "")
+                .replace(/\(里[、，]鄰[、，]郵遞區號.*?\)/g, "")
+                .replace(/[\(（]郵遞區號[:：]?\s*\d+[\)）]/g, "") 
+                .replace(/[()]/g, "")
+                .replace(/[\s\n\r]/g, "");
+        }
+
+        // 輔助函數：從文字中提取地址
+        function extractAddressFromChunk(chunk) {
+            // 這個正則可以匹配 3 個字的縣市 (如高雄市) 和 2 個字的縣市 (如嘉義縣)
+            // 關鍵修正：[^0-9\s]{2,3} 允許中間有 2~3 個字
+            const regex = /([台臺]?[^0-9\s]{2,3}[縣市].*?[號樓])/;
+            const match = chunk.match(regex);
+            if (match) {
+                // 自動修復 "址高雄市" 或 "住高雄市" 的情況
+                return match[1].replace(/^[^台臺高新北桃中南基宜花東澎金連苗彰雲嘉屏]*/, "");
+            }
+            return "";
         }
 
         async function parsePDF() {
             const fileInput = document.getElementById('pdf_upload');
             const btn = document.querySelector('button[onclick="parsePDF()"]');
-            const debugDiv = document.getElementById('debug');
             
             if (fileInput.files.length === 0) {
                 alert("請先選擇 PDF 檔案!");
                 return;
             }
 
-            btn.innerText = "分析中...";
+            btn.innerText = "🔍 解析中...";
             btn.disabled = true;
-            debugDiv.innerHTML = "=== 開始除錯分析 ===\n";
 
             try {
                 const file = fileInput.files[0];
@@ -107,21 +125,165 @@
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
                     const textContent = await page.getTextContent();
-                    // 這裡改用空字串連接，並移除所有空白，還原最原始的文字流
                     const pageStr = textContent.items.map(item => item.str).join(""); 
                     fullText += pageStr;
                 }
-
-                // 移除所有換行和空白，讓資料變成一條長龍
-                const cleanText = fullText.replace(/[\s\n\r]/g, "");
                 
-                showDebug(`✓ PDF 讀取完成，總字數: ${cleanText.length}`);
-                
-                // ★★★ 除錯重點 1: 印出前 300 個字檢查表頭 ★★★
-                showDebug(`\n--- [前300字預覽] ---\n${cleanText.substring(0, 300)}...\n------------------`);
+                const cleanText = cleanTextDeep(fullText);
 
-                // 解析基本欄位
-                let userName = "", userId = "", userPhone = "";
+                // --- 解析基本欄位 ---
+                let userName = "", userId = "", userPhone = "", paymentVal = "240";
+                
                 const headerMatch = cleanText.match(/姓名\/身分證字號[:：]?([^\/]+)\/([A-Z][0-9]{9})/);
-                if (headerMatch) { userName = headerMatch[1]; userId = headerMatch[2]; }
-                const phoneMatch = cleanText.match
+                if (headerMatch) { userName = headerMatch[1].replace(/[:：]/g, ""); userId = headerMatch[2]; }
+
+                const phoneMatch = cleanText.match(/個案電話.*?((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
+                if (phoneMatch) userPhone = phoneMatch[1];
+
+                const welfareMatch = cleanText.match(/長照福利.*?(第[一二三]類)/);
+                if (welfareMatch) {
+                    if (welfareMatch[1].includes("一")) paymentVal = "0";
+                    else if (welfareMatch[1].includes("二")) paymentVal = "75";
+                }
+
+                let contractorName = userName;
+                let contractorPhone = userPhone;
+                let agentMatch = cleanText.match(/代理人姓名(.*?)代理人身分證/);
+                if (!agentMatch) agentMatch = cleanText.match(/主要聯絡人姓名(.*?)主要聯絡人/);
+                if (agentMatch) {
+                    let tempName = agentMatch[1].replace(/[:：]/g, "").trim();
+                    if (tempName.length > 1) contractorName = tempName;
+                }
+                const agentPhoneMatch = cleanText.match(/(?:代理人|聯絡人)手機[::]?.*?((09\d{8}))/);
+                if (agentPhoneMatch) contractorPhone = agentPhoneMatch[1];
+
+
+                // --- 解析地址 (定位截取法 + 黑名單) ---
+                
+                let hAddr = "";
+                let cAddr = "";
+
+                // 1. 戶籍地址：找到 "戶籍地址" 後，往後抓 50 個字來分析
+                const idxHouse = cleanText.indexOf("戶籍地址");
+                if (idxHouse !== -1) {
+                    const chunk = cleanText.substring(idxHouse, idxHouse + 100);
+                    hAddr = extractAddressFromChunk(chunk);
+                }
+
+                // 2. 通訊地址：找到 "通訊地址" (或居住通訊地址) 後，往後抓 50 個字
+                let idxContact = cleanText.indexOf("通訊地址");
+                // 如果找不到通訊地址，試試看 "居住"
+                if (idxContact === -1) idxContact = cleanText.indexOf("居住通訊");
+                if (idxContact === -1 && cleanText.indexOf("居住") !== -1) {
+                     // 避免抓到 "居住狀況"
+                     const tempIdx = cleanText.lastIndexOf("居住"); 
+                     if (tempIdx > idxHouse) idxContact = tempIdx; 
+                }
+
+                if (idxContact !== -1) {
+                    const chunk = cleanText.substring(idxContact, idxContact + 100);
+                    let foundAddr = extractAddressFromChunk(chunk);
+                    // 確保沒有抓到戶籍地址一樣的內容 (除非真的只有一個地址)
+                    if (foundAddr && foundAddr !== hAddr) {
+                        cAddr = foundAddr;
+                    }
+                }
+
+                // 3. 備用方案：如果上面方法失敗，使用列表法掃描全文件
+                if (!hAddr || !cAddr) {
+                    const allAddrRegex = /([台臺]?[^0-9\s]{2,3}[縣市].*?[號樓])/g;
+                    const matches = [];
+                    let m;
+                    while ((m = allAddrRegex.exec(cleanText)) !== null) {
+                        let a = m[1].replace(/^[^台臺高新北桃中南基宜花東澎金連苗彰雲嘉屏]*/, ""); // 修復前綴
+                        // 過濾黑名單
+                        if (!a.includes("中心") && !a.includes("醫院") && !a.includes("衛生局") && a.length > 8) {
+                            matches.push(a);
+                        }
+                    }
+
+                    if (!hAddr && matches.length > 0) hAddr = matches[0];
+                    if (!cAddr && matches.length > 1) cAddr = matches[1];
+                }
+
+                // 最後確認：通訊若空，同戶籍
+                if (!cAddr) cAddr = hAddr;
+
+                // --- 填入 ---
+                document.getElementById('user_name').value = userName;
+                document.getElementById('user_id').value = userId;
+                document.getElementById('user_phone').value = userPhone;
+                document.getElementById('payment').value = paymentVal;
+                document.getElementById('contractor_name').value = contractorName;
+                document.getElementById('contractor_phone').value = contractorPhone;
+                
+                document.getElementById('household_address').value = hAddr;
+                document.getElementById('contact_address').value = cAddr;
+
+                alert(`解析成功！\n\n戶籍：${hAddr}\n通訊：${cAddr}`);
+
+            } catch (err) {
+                alert("錯誤: " + err.message);
+            } finally {
+                btn.innerText = "🔍 解析 PDF";
+                btn.disabled = false;
+            }
+        }
+
+        function calculateEndDate(visitDateStr) {
+            if (!visitDateStr) return "";
+            const match = visitDateStr.match(/^(\d{2,3})年(\d{1,2})月(\d{1,2})日$/);
+            if (!match) return "";
+            let year = parseInt(match[1]) + 1911;
+            let month = parseInt(match[2]);
+            let day = parseInt(match[3]);
+            let newMonth = month + 3;
+            let newYear = year;
+            if (newMonth > 12) { newYear += 1; newMonth -= 12; }
+            const lastDayOfNewMonth = new Date(newYear, newMonth, 0).getDate();
+            const newDay = Math.min(day, lastDayOfNewMonth);
+            return `${newYear - 1911}年${newMonth}月${newDay}日`;
+        }
+
+        async function generateWord() {
+            const btn = document.querySelector('.btn-success');
+            const originalText = btn.innerText;
+            btn.innerText = "⏳ 處理中...";
+            btn.disabled = true;
+
+            try {
+                const { data: fileData, error } = await supabase.storage.from(BUCKET_NAME).download(TEMPLATE_NAME);
+                if (error) throw new Error("下載範本失敗: " + error.message);
+
+                const visitDate = document.getElementById('visit_date').value;
+                const templateData = {
+                    user_name: document.getElementById('user_name').value,
+                    user_id: document.getElementById('user_id').value,
+                    user_phone: document.getElementById('user_phone').value,
+                    payment: document.getElementById('payment').value,
+                    contractor_name: document.getElementById('contractor_name').value,
+                    contractor_phone: document.getElementById('contractor_phone').value,
+                    household_address: document.getElementById('household_address').value,
+                    contact_address: document.getElementById('contact_address').value,
+                    visit_date: visitDate,
+                    end_date: calculateEndDate(visitDate)
+                };
+
+                const arrayBuffer = await fileData.arrayBuffer();
+                const zip = new PizZip(arrayBuffer);
+                const doc = new window.docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+                doc.render(templateData);
+
+                const blob = doc.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+                saveAs(blob, `義大醫院契約書_${templateData.user_name}.docx`);
+                
+            } catch (err) {
+                alert("錯誤: " + err.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
