@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約產生器 (地址切割修復版)</title>
+    <title>長照合約產生器 (區塊定位修復版)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/docxtemplater/3.37.11/docxtemplater.js"></script>
@@ -108,7 +108,7 @@
             document.getElementById('visit_date').value = dateStr;
         };
 
-        // ★★★ 核心解析邏輯 (地址暴力切割版) ★★★
+        // ★★★ 核心解析邏輯 (區塊定位修復版) ★★★
         async function parsePDF() {
             const fileInput = document.getElementById('pdf_upload');
             const btn = document.querySelector('button[onclick="parsePDF()"]');
@@ -161,12 +161,16 @@
                 const phoneMatch = cleanText.match(/個案電話.*?((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
                 if (phoneMatch) userPhone = phoneMatch[1];
 
-                // --- 3. 費用等級 ---
+                // --- 3. 費用等級 (只抓福利身分) ---
                 let paymentVal = "240";
-                if (cleanText.includes("第三類")) paymentVal = "240";
-                else if (cleanText.includes("第二類")) paymentVal = "75";
-                else if (cleanText.includes("第一類") || cleanText.includes("低收")) paymentVal = "0";
-                else if (cleanText.includes("中低")) paymentVal = "75";
+                // 優先抓取 "長照福利" 緊接的字，避開選項列表
+                const welfareMatch = cleanText.match(/長照福利.*?(第[一二三]類)/);
+                if (welfareMatch) {
+                    const level = welfareMatch[1];
+                    if (level.includes("第一類")) paymentVal = "0";
+                    else if (level.includes("第二類")) paymentVal = "75";
+                    else if (level.includes("第三類")) paymentVal = "240";
+                }
 
                 // --- 4. 代理人 ---
                 let contractorName = "";
@@ -185,50 +189,46 @@
                 if (!contractorName || contractorName.length < 2) contractorName = userName;
                 if (!contractorPhone) contractorPhone = userPhone;
 
-                // --- 5. 地址 (強力切割法) ---
+                // --- 5. 地址 (區塊夾擊定位法) ---
                 let householdAddress = "";
                 let contactAddress = "";
 
-                // 方法：直接在 cleanText (無空白字串) 中找關鍵字位置
-                // (A) 戶籍地址
-                // 邏輯：從 "戶籍地址" 開始，抓到後面第一個 "※" 結束
-                const hStartKey = "戶籍地址";
-                const hEndKey = "※";
-                const hStartIndex = cleanText.indexOf(hStartKey);
-                
-                if (hStartIndex !== -1) {
-                    // 從 "戶籍地址" 後面開始找 "※"
-                    const searchStart = hStartIndex + hStartKey.length;
-                    const hEndIndex = cleanText.indexOf(hEndKey, searchStart);
+                // (A) 戶籍地址：夾在「戶籍地址」與「居住」之間
+                let hStart = cleanText.indexOf("戶籍地址");
+                let cStart = cleanText.indexOf("居住");
+                if (cStart === -1) cStart = cleanText.indexOf("通訊地"); // 備用
+
+                if (hStart !== -1 && cStart !== -1 && cStart > hStart) {
+                    // 切出中間的字串
+                    let rawH = cleanText.substring(hStart + "戶籍地址".length, cStart);
                     
-                    if (hEndIndex !== -1) {
-                        // 切割出中間的字串
-                        let raw = cleanText.substring(searchStart, hEndIndex);
-                        // 清理可能殘留的標點
-                        householdAddress = raw.replace(/[:：]/g, "").trim();
-                    }
+                    // 清理：遇到 "※" 就切斷
+                    if (rawH.indexOf("※") !== -1) rawH = rawH.substring(0, rawH.indexOf("※"));
+                    // 清理：遇到 "(里" 就切斷
+                    if (rawH.indexOf("(里") !== -1) rawH = rawH.substring(0, rawH.indexOf("(里"));
+                    
+                    householdAddress = rawH.trim();
                 }
 
-                // (B) 通訊地址
-                // 邏輯：從 "居住(通訊)地" 開始，抓到後面第一個 "※" 結束
-                // 注意：cleanText 裡括號可能被清掉或保留，我們用模糊比對
-                let cStartKey = "居住(通訊)地";
-                if (cleanText.indexOf(cStartKey) === -1) cStartKey = "居住通訊地"; // 備用無括號版
-                
-                const cStartIndex = cleanText.indexOf(cStartKey);
-                
-                if (cStartIndex !== -1) {
-                    const searchStart = cStartIndex + cStartKey.length;
-                    const cEndIndex = cleanText.indexOf("※", searchStart);
+                // (B) 通訊地址：夾在「居住」與「常用語言」之間
+                let langStart = cleanText.indexOf("常用語言");
+                if (langStart === -1) langStart = cleanText.indexOf("語言"); // 備用
+
+                if (cStart !== -1 && langStart !== -1 && langStart > cStart) {
+                    // 切出中間的字串
+                    let rawC = cleanText.substring(cStart, langStart);
                     
-                    if (cEndIndex !== -1) {
-                        let raw = cleanText.substring(searchStart, cEndIndex);
-                        // 清理雜訊：郵遞區號、址
-                        raw = raw.replace(/\(?郵遞區號[:：]?\d*\)?/g, ""); // 去除郵遞區號
-                        raw = raw.replace(/址/g, ""); // 去除 "址" 字
-                        raw = raw.replace(/[:：]/g, "");
-                        contactAddress = raw.trim();
-                    }
+                    // 清理：移除標題 "居住(通訊)地"
+                    rawC = rawC.replace(/居住.*?(通訊)?.*?地[址]?/g, "");
+                    
+                    // 清理：遇到 "※" 就切斷
+                    if (rawC.indexOf("※") !== -1) rawC = rawC.substring(0, rawC.indexOf("※"));
+                    // 清理：遇到 "(里" 就切斷
+                    if (rawC.indexOf("(里") !== -1) rawC = rawC.substring(0, rawC.indexOf("(里"));
+                    // 清理：移除郵遞區號
+                    rawC = rawC.replace(/[\(（]郵遞區號[:：]?\d*[\)）]/g, "");
+
+                    contactAddress = rawC.trim();
                 }
 
                 // --- 填入表單 ---
@@ -239,14 +239,14 @@
                 document.getElementById('contractor_name').value = contractorName || "";
                 document.getElementById('contractor_phone').value = contractorPhone || "";
                 
-                // 若切割法抓不到，顯示提示
-                document.getElementById('household_address').value = householdAddress || "（未抓到，請手動輸入）";
-                document.getElementById('contact_address').value = contactAddress || "（未抓到，請手動輸入）";
+                // 若仍未抓到，保留原提示
+                if (householdAddress) document.getElementById('household_address').value = householdAddress;
+                if (contactAddress) document.getElementById('contact_address').value = contactAddress;
 
                 if (householdAddress || contactAddress) {
                     alert(`解析成功！\n戶籍：${householdAddress}\n通訊：${contactAddress}`);
                 } else {
-                    alert("姓名電話已解析，但地址未抓到，請確認 PDF 內容是否為標準格式。");
+                    alert("姓名電話已解析，但地址區塊定位失敗，請確認 PDF 是否包含標準欄位名稱。");
                 }
 
             } catch (err) {
