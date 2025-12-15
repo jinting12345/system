@@ -3,55 +3,61 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>查看照片上傳紀錄</title>
+    <title>查看照片上傳紀錄 & 管理</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; background: #f8f9fa; max-width: 1000px; margin: 0 auto; }
-        .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; background: #f8f9fa; max-width: 1200px; margin: 0 auto; }
+        
+        /* 頂部儲存空間儀表板 */
+        .dashboard { background: linear-gradient(135deg, #1a73e8, #0d47a1); color: white; padding: 15px 20px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .dash-item { text-align: center; }
+        .dash-label { font-size: 12px; opacity: 0.9; margin-bottom: 5px; }
+        .dash-value { font-size: 20px; font-weight: bold; }
+        .progress-bg { width: 150px; height: 8px; background: rgba(255,255,255,0.3); border-radius: 4px; margin-top: 5px; overflow: hidden; }
+        .progress-bar { height: 100%; background: #4caf50; width: 0%; transition: width 0.5s; }
+
+        .header { display: flex; justify-content: space-between; margin-bottom: 15px; }
         .back-btn { text-decoration: none; color: #666; display: flex; align-items: center; }
         .logout-btn { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
-        
-        .control-panel { background: white; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; flex-wrap: wrap; }
-        select, input[type="month"], input[type="date"] { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
-        button.check-btn { padding: 8px 16px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px;}
-        button.check-btn:hover { background: #1557b0; }
 
+        .control-panel { background: white; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 15px; flex-wrap: wrap; }
+        select, input[type="month"], input[type="date"] { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
+        button.btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; color: white; display: flex; align-items: center; gap: 5px;}
+        .btn-search { background: #1a73e8; }
+        .btn-search:hover { background: #1557b0; }
+        .btn-download { background: #198754; } 
+        .btn-download:hover { background: #157347; }
+        
         .table-container { background: white; border-radius: 8px; overflow-x: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; min-width: 800px; } 
+        table { width: 100%; border-collapse: collapse; min-width: 900px; } 
         th, td { padding: 10px; text-align: center; border-bottom: 1px solid #eee; border-right: 1px solid #eee; vertical-align: middle; }
         th { background: #f1f3f4; color: #333; font-size: 14px; white-space: nowrap; }
-        td { font-size: 14px; }
         
-        .col-date { font-weight: bold; color: #1a73e8; white-space: nowrap; background: #fff; position: sticky; left: 0; z-index: 1; border-right: 2px solid #ddd; }
+        .col-check { width: 40px; position: sticky; left: 0; background: #fff; z-index: 2; border-right: 2px solid #ddd; }
+        .col-date { font-weight: bold; color: #1a73e8; white-space: nowrap; background: #fff; position: sticky; left: 40px; z-index: 1; border-right: 2px solid #ddd; }
         
-        /* 編輯輸入框樣式 */
-        .staff-input {
-            width: 100%;
-            min-width: 80px;
-            padding: 6px;
-            border: 1px solid transparent; 
-            border-radius: 4px;
-            text-align: center;
-            font-family: inherit;
-            background: transparent;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: bold;
-            color: #444;
-        }
+        /* 狀態樣式 */
+        .staff-input { width: 100%; min-width: 80px; padding: 6px; border: 1px solid transparent; border-radius: 4px; text-align: center; font-family: inherit; background: transparent; cursor: pointer; font-weight: bold; color: #444; }
         .staff-input:hover { border: 1px solid #ddd; background: #f8f9fa; }
-        .staff-input:focus { border: 1px solid #1a73e8; background: #fff; outline: none; box-shadow: 0 0 3px rgba(26,115,232,0.3); }
-        
-        /* 儲存狀態顏色 */
+        .staff-input:focus { border: 1px solid #1a73e8; background: #fff; outline: none; }
         .saving { background-color: #fff3cd !important; } 
         .saved { background-color: #d1e7dd !important; border-color: #198754 !important; } 
         .error { background-color: #f8d7da !important; border-color: #dc3545 !important; } 
 
-        .ok { color: #28a745; font-size: 18px; } 
-        .missing { color: #dc3545; font-size: 12px; font-weight: bold; } 
-        
+        .ok { color: #28a745; font-size: 20px; cursor: pointer; transition: transform 0.2s; display: inline-block; } 
+        .ok:hover { transform: scale(1.2); }
+        .missing { color: #dc3545; font-size: 12px; font-weight: bold; opacity: 0.3; } 
         tr.weekend { background-color: #fafafa; }
-        .tip { font-size: 12px; color: #666; margin-left: 10px; }
+        
+        /* 圖片燈箱 Modal */
+        .modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.9); }
+        .modal-content { margin: auto; display: block; max-width: 90%; max-height: 90vh; border-radius: 8px; margin-top: 20px;}
+        .close { position: absolute; top: 15px; right: 35px; color: #f1f1f1; font-size: 40px; font-weight: bold; transition: 0.3s; cursor: pointer; }
+        .close:hover, .close:focus { color: #bbb; text-decoration: none; cursor: pointer; }
+        #caption { margin: auto; display: block; width: 80%; max-width: 700px; text-align: center; color: #ccc; padding: 10px 0; height: 150px; }
     </style>
 </head>
 <body>
@@ -60,26 +66,48 @@
         <button onclick="handleLogout()" class="logout-btn">登出</button>
     </div>
 
+    <div class="dashboard">
+        <div class="dash-item">
+            <div class="dash-label">雲端空間使用量 (預估)</div>
+            <div class="dash-value" id="storageUsed">計算中...</div>
+            <div class="progress-bg"><div class="progress-bar" id="storageBar"></div></div>
+        </div>
+        <div class="dash-item">
+            <div class="dash-label">預計剩餘可存天數</div>
+            <div class="dash-value" id="daysLeft">-- 天</div>
+        </div>
+        <div class="dash-item">
+            <div class="dash-label">總照片數</div>
+            <div class="dash-value" id="totalPhotos">0 張</div>
+        </div>
+    </div>
+
     <div class="control-panel">
         <select id="viewMode" onchange="changeMode()">
-            <option value="day">📅 每日檢視</option>
-            <option value="week">📆 每週檢視</option>
             <option value="month" selected>🗓️ 每月檢視</option>
+            <option value="week">📆 每週檢視</option>
+            <option value="day">📅 每日檢視</option>
         </select>
         
         <div id="dateInputContainer">
             <input type="month" id="monthInput">
         </div>
 
-        <button class="check-btn" onclick="fetchData()">🔍 查詢</button>
-        <span class="tip">💡 提示：點擊名字可修改，改完點空白處自動儲存。</span>
+        <button class="btn btn-search" onclick="fetchData()">🔍 查詢紀錄</button>
+        <div style="flex-grow: 1;"></div>
+        <button class="btn btn-download" onclick="downloadSelected()">
+            📥 下載選取日期並清除資料
+        </button>
     </div>
 
     <div class="table-container">
         <table>
             <thead>
                 <tr>
-                    <th rowspan="2" class="col-date" style="z-index:2">日期</th>
+                    <th rowspan="2" class="col-check" style="z-index: 3;">
+                        <input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)">
+                    </th>
+                    <th rowspan="2" class="col-date" style="z-index: 2">日期</th>
                     <th rowspan="2" style="width: 120px;">值班人</th>
                     <th colspan="2">早餐</th>
                     <th colspan="2">午餐</th>
@@ -92,16 +120,34 @@
                 </tr>
             </thead>
             <tbody id="resultBody">
-                <tr><td colspan="8" style="padding: 20px;">請選擇日期並按下查詢</td></tr>
+                <tr><td colspan="9" style="padding: 20px;">請選擇日期並按下查詢</td></tr>
             </tbody>
         </table>
     </div>
 
+    <div id="imageModal" class="modal">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <img class="modal-content" id="modalImg">
+        <div id="caption"></div>
+    </div>
+
     <script>
+        // --- 設定區 ---
+        // 請確認您的 Supabase Storage Bucket 名稱，通常可能是 "images", "photos", "meal_photos" 等
+        // 若您之前的程式碼沒指定 Bucket，請至 Supabase Storage 後台確認 Bucket 名稱並填入下方：
+        const BUCKET_NAME = 'meal_photos'; // <--- 請確認這裡！
+        
+        // 假設每張照片平均 500KB (用於估算容量)
+        const AVG_PHOTO_SIZE_MB = 0.5; 
+        const MAX_STORAGE_MB = 1000; // 免費版通常是 1GB (1000MB)
+
         function cleanString(str) { return str ? str.replace(/[^\x20-\x7E]/g, '').trim() : ''; }
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
         const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
+
+        // 全域變數儲存當前查詢的資料，供下載使用
+        let currentLogs = []; 
 
         // 初始化
         (async () => {
@@ -112,41 +158,65 @@
             const yyyy = today.getFullYear();
             const mm = String(today.getMonth() + 1).padStart(2, '0');
             document.getElementById('monthInput').value = `${yyyy}-${mm}`;
+
+            updateStorageStats(); // 更新儀表板
         })();
 
         async function handleLogout() { await supabase.auth.signOut(); window.location.href = 'index.html'; }
 
+        // --- 1. 儀表板與統計功能 ---
+        async function updateStorageStats() {
+            // 由於無法直接取得 Bucket 大小，我們透過計算 meal_logs 的總筆數來估算
+            const { count, error } = await supabase.from('meal_logs').select('*', { count: 'exact', head: true });
+            
+            if (error) { console.error('無法取得統計', error); return; }
+
+            const totalPhotos = count || 0;
+            const usedMB = (totalPhotos * AVG_PHOTO_SIZE_MB).toFixed(1);
+            const percent = Math.min((usedMB / MAX_STORAGE_MB) * 100, 100);
+
+            document.getElementById('totalPhotos').innerText = `${totalPhotos} 張`;
+            document.getElementById('storageUsed').innerText = `${usedMB} MB / ${MAX_STORAGE_MB} MB`;
+            document.getElementById('storageBar').style.width = `${percent}%`;
+            document.getElementById('storageBar').style.background = percent > 90 ? '#dc3545' : (percent > 70 ? '#ffc107' : '#4caf50');
+
+            // 估算剩餘天數 (假設每天上傳 6 張)
+            const dailyUploads = 6; 
+            const dailySize = dailyUploads * AVG_PHOTO_SIZE_MB;
+            const remainingMB = MAX_STORAGE_MB - usedMB;
+            const daysLeft = Math.floor(remainingMB / dailySize);
+            
+            document.getElementById('daysLeft').innerText = daysLeft > 365 ? '> 1 年' : `約 ${daysLeft} 天`;
+        }
+
+        // --- 2. 查詢與顯示邏輯 ---
         function changeMode() {
             const mode = document.getElementById('viewMode').value;
             const container = document.getElementById('dateInputContainer');
-            container.innerHTML = ''; 
-
             const today = new Date();
-            const yyyy = today.getFullYear();
-            const mm = String(today.getMonth() + 1).padStart(2, '0');
-            const dd = String(today.getDate()).padStart(2, '0');
+            const dateStr = today.toISOString().split('T')[0];
+            const monthStr = dateStr.slice(0, 7);
 
             if (mode === 'month') {
-                container.innerHTML = `<input type="month" id="monthInput" value="${yyyy}-${mm}">`;
+                container.innerHTML = `<input type="month" id="monthInput" value="${monthStr}">`;
             } else {
-                container.innerHTML = `<input type="date" id="dateInput" value="${yyyy}-${mm}-${dd}">`;
+                container.innerHTML = `<input type="date" id="dateInput" value="${dateStr}">`;
             }
         }
 
         async function fetchData() {
             const mode = document.getElementById('viewMode').value;
             const tbody = document.getElementById('resultBody');
-            tbody.innerHTML = '<tr><td colspan="8">資料讀取中...</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9">資料讀取中...</td></tr>';
 
             let startDate, endDate;
-
+            // (日期計算邏輯維持原本)
             if (mode === 'month') {
                 const val = document.getElementById('monthInput').value;
                 if (!val) { alert('請選擇月份'); return; }
                 const [y, m] = val.split('-');
                 startDate = `${y}-${m}-01`;
-                const lastDay = new Date(y, m, 0).getDate();
-                endDate = `${y}-${m}-${lastDay}`;
+                endDate = `${y}-${m}-${new Date(y, m, 0).getDate()}`;
             } else if (mode === 'week') {
                 const val = document.getElementById('dateInput').value;
                 if (!val) { alert('請選擇日期'); return; }
@@ -159,29 +229,24 @@
             } else { 
                 const val = document.getElementById('dateInput').value;
                 if (!val) { alert('請選擇日期'); return; }
-                startDate = val;
-                endDate = val;
+                startDate = val; endDate = val;
             }
 
             const { data: logs, error: lErr } = await supabase
-                .from('meal_logs')
-                .select('*')
-                .gte('meal_date', startDate)
-                .lte('meal_date', endDate);
+                .from('meal_logs').select('*').gte('meal_date', startDate).lte('meal_date', endDate);
 
             const { data: roster, error: rErr } = await supabase
-                .from('duty_roster')
-                .select('*')
-                .gte('date', startDate)
-                .lte('date', endDate);
+                .from('duty_roster').select('*').gte('date', startDate).lte('date', endDate);
 
             if (lErr || rErr) {
                 console.error(lErr, rErr);
-                tbody.innerHTML = '<tr><td colspan="8" style="color:red">讀取失敗</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="color:red">讀取失敗</td></tr>';
                 return;
             }
 
+            currentLogs = logs; // 存起來給下載用
             renderTable(startDate, endDate, logs, roster);
+            updateStorageStats(); // 順便更新統計
         }
 
         function renderTable(startStr, endStr, logs, roster) {
@@ -196,73 +261,170 @@
                 const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6) ? 'weekend' : '';
                 const weekStr = ['日','一','二','三','四','五','六'][dayOfWeek];
 
-                // 單人邏輯：只抓取該日期匹配到的第一個人名
                 const staffEntry = roster.find(r => r.date === dateIso);
                 const staffName = staffEntry ? staffEntry.staff_name : '';
 
-                const check = (m, t) => {
+                // 產生 Checkbox
+                // 產生照片狀態
+                const renderCell = (m, t) => {
                     const found = logs.find(l => l.meal_date === dateIso && l.meal_type === m && l.target_type === t);
-                    return found ? '<span class="ok">✅</span>' : '<span class="missing">❌</span>';
+                    if (found && found.photo_url) {
+                        // 有照片：顯示可點擊的勾勾
+                        return `<span class="ok" onclick="showImage('${found.photo_url}', '${dateIso} ${m} ${t}')" title="點擊查看照片">✅</span>`;
+                    } else {
+                        return '<span class="missing">❌</span>';
+                    }
                 };
 
                 html += `
                     <tr class="${isWeekend}">
+                        <td class="col-check"><input type="checkbox" class="row-select" value="${dateIso}"></td>
                         <td class="col-date">${displayDate} (${weekStr})</td>
                         <td>
-                            <input type="text" 
-                                   class="staff-input" 
-                                   value="${staffName}" 
-                                   onchange="updateRoster('${dateIso}', this)"
-                                   placeholder="-"
-                                   title="點擊修改值班人員">
+                            <input type="text" class="staff-input" value="${staffName}" 
+                                   onchange="updateRoster('${dateIso}', this)" placeholder="-">
                         </td>
-                        <td>${check('breakfast', 'patient')}</td>
-                        <td>${check('breakfast', 'nursing')}</td>
-                        <td>${check('lunch', 'patient')}</td>
-                        <td>${check('lunch', 'nursing')}</td>
-                        <td>${check('dinner', 'patient')}</td>
-                        <td>${check('dinner', 'nursing')}</td>
+                        <td>${renderCell('breakfast', 'patient')}</td>
+                        <td>${renderCell('breakfast', 'nursing')}</td>
+                        <td>${renderCell('lunch', 'patient')}</td>
+                        <td>${renderCell('lunch', 'nursing')}</td>
+                        <td>${renderCell('dinner', 'patient')}</td>
+                        <td>${renderCell('dinner', 'nursing')}</td>
                     </tr>
                 `;
-
                 current.setDate(current.getDate() + 1);
             }
-
             document.getElementById('resultBody').innerHTML = html;
         }
 
+        // --- 3. 圖片預覽功能 ---
+        function showImage(path, title) {
+            const modal = document.getElementById('imageModal');
+            const modalImg = document.getElementById('modalImg');
+            const caption = document.getElementById('caption');
+            
+            // 取得完整圖片網址
+            const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(path);
+            
+            modal.style.display = "block";
+            modalImg.src = data.publicUrl;
+            caption.innerHTML = title;
+        }
+
+        function closeModal() {
+            document.getElementById('imageModal').style.display = "none";
+        }
+
+        // --- 4. 批量下載與刪除功能 ---
+        function toggleSelectAll(source) {
+            const checkboxes = document.querySelectorAll('.row-select');
+            checkboxes.forEach(cb => cb.checked = source.checked);
+        }
+
+        async function downloadSelected() {
+            const checkboxes = document.querySelectorAll('.row-select:checked');
+            if (checkboxes.length === 0) { alert('請先勾選要下載的日期'); return; }
+
+            const selectedDates = Array.from(checkboxes).map(cb => cb.value);
+            const targetLogs = currentLogs.filter(log => selectedDates.includes(log.meal_date));
+
+            if (targetLogs.length === 0) { alert('所選日期沒有任何照片可下載。'); return; }
+
+            const confirmMsg = `您選擇了 ${selectedDates.length} 天，共 ${targetLogs.length} 張照片。\n\n1. 系統將打包下載至您的電腦 (ZIP)。\n2. 下載完成後，會詢問是否「刪除」這些資料以釋放空間。\n\n是否繼續？`;
+            if (!confirm(confirmMsg)) return;
+
+            const btn = document.querySelector('.btn-download');
+            const originalText = btn.innerText;
+            btn.innerText = '⏳ 打包下載中...';
+            btn.disabled = true;
+
+            try {
+                const zip = new JSZip();
+                let count = 0;
+
+                // 下載所有圖片並加入 ZIP
+                for (const log of targetLogs) {
+                    if (!log.photo_url) continue;
+                    
+                    const { data } = supabase.storage.from(BUCKET_NAME).getPublicUrl(log.photo_url);
+                    
+                    // 下載圖片 Blob
+                    const response = await fetch(data.publicUrl);
+                    const blob = await response.blob();
+                    
+                    // 檔名: 日期_餐別_對象.jpg
+                    const fileName = `${log.meal_date}_${log.meal_type}_${log.target_type}.jpg`;
+                    zip.file(fileName, blob);
+                    count++;
+                }
+
+                // 產生 ZIP 檔案
+                const content = await zip.generateAsync({type:"blob"});
+                const zipName = `餐點照片備份_${selectedDates[0]}_to_${selectedDates[selectedDates.length-1]}.zip`;
+                saveAs(content, zipName);
+
+                alert('✅ 下載已開始！請將 ZIP 檔妥善保存 (可拖入 Google 雲端)。');
+
+                // 詢問是否刪除
+                if (confirm(`⚠️ 警告：照片已打包下載。\n\n是否要「永久刪除」這 ${count} 筆 Supabase 雲端資料以釋放空間？\n(此動作無法復原)`)) {
+                    await deleteData(targetLogs);
+                }
+
+            } catch (err) {
+                console.error(err);
+                alert('下載過程中發生錯誤：' + err.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteData(logsToDelete) {
+            const statusDiv = document.querySelector('.btn-download');
+            statusDiv.innerText = '🗑️ 正在刪除資料...';
+
+            try {
+                // 1. 刪除 Storage 中的檔案 (需要檔案路徑)
+                const filePaths = logsToDelete.map(l => l.photo_url).filter(p => p);
+                if (filePaths.length > 0) {
+                    const { error: storageErr } = await supabase.storage.from(BUCKET_NAME).remove(filePaths);
+                    if (storageErr) throw new Error('圖片檔案刪除失敗: ' + storageErr.message);
+                }
+
+                // 2. 刪除 DB 中的紀錄 (根據 ID)
+                const ids = logsToDelete.map(l => l.id);
+                const { error: dbErr } = await supabase.from('meal_logs').delete().in('id', ids);
+                if (dbErr) throw new Error('資料庫紀錄刪除失敗: ' + dbErr.message);
+
+                alert('✅ 資料已成功清除，空間已釋放！');
+                fetchData(); // 重新整理表格
+
+            } catch (err) {
+                alert('❌ 刪除失敗: ' + err.message);
+            }
+        }
+
+        // --- 5. 值班人員修改 (維持原功能) ---
         async function updateRoster(date, inputEl) {
             const originalVal = inputEl.defaultValue; 
-            const newName = inputEl.value.trim(); // 單一姓名，不進行分割
+            const newName = inputEl.value.trim();
             
             inputEl.classList.add('saving');
             inputEl.classList.remove('saved', 'error');
 
             try {
-                // 1. 刪除該日期當前所有班表 (確保最後只剩一筆)
-                const { error: delErr } = await supabase
-                    .from('duty_roster')
-                    .delete()
-                    .eq('date', date);
-
+                const { error: delErr } = await supabase.from('duty_roster').delete().eq('date', date);
                 if (delErr) throw delErr;
 
-                // 2. 如果輸入框有名字，插入該筆單一資料
                 if (newName) {
-                    const { error: insErr } = await supabase
-                        .from('duty_roster')
-                        .insert([{
-                            date: date,
-                            staff_name: newName,
-                            shift: 'BN'
-                        }]);
+                    const { error: insErr } = await supabase.from('duty_roster').insert([{
+                        date: date, staff_name: newName, shift: 'BN'
+                    }]);
                     if (insErr) throw insErr;
                 }
-
                 inputEl.classList.remove('saving');
                 inputEl.classList.add('saved');
                 setTimeout(() => inputEl.classList.remove('saved'), 1000);
-
             } catch (err) {
                 console.error('更新失敗', err);
                 alert('儲存失敗：' + err.message);
