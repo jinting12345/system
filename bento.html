@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>便當上傳 (自動浮水印版)</title>
+    <title>便當上傳</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/browser-image-compression/2.0.2/browser-image-compression.js"></script>
     <style>
@@ -68,8 +68,8 @@
     </div>
 
     <script>
-        // 設定區
-        const BUCKET_NAME = 'photos'; // 根據截圖修正：使用 'photos'
+        // 設定區：確認使用 photos
+        const BUCKET_NAME = 'photos'; 
         
         function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
@@ -121,7 +121,7 @@
             document.getElementById('summary').innerText = `${date} / ${tName} / ${mName}`;
         }
 
-        // --- 新增：浮水印處理函數 ---
+        // --- 浮水印處理函數 ---
         async function addWatermark(imageFile, text) {
             return new Promise((resolve, reject) => {
                 const img = new Image();
@@ -131,40 +131,37 @@
                     const canvas = document.createElement('canvas');
                     const ctx = canvas.getContext('2d');
                     
-                    // 設定畫布大小等於圖片大小
                     canvas.width = img.width;
                     canvas.height = img.height;
                     
                     // 1. 繪製原圖
                     ctx.drawImage(img, 0, 0);
                     
-                    // 2. 設定文字樣式 (根據圖片寬度自動調整大小，約佔 4%)
+                    // 2. 設定文字樣式
                     const fontSize = Math.max(20, canvas.width * 0.04); 
                     ctx.font = `bold ${fontSize}px "Microsoft JhengHei", sans-serif`;
                     ctx.textBaseline = 'bottom';
                     ctx.textAlign = 'right';
                     
-                    // 3. 計算文字寬度與背景框大小
+                    // 3. 計算文字寬度
                     const padding = fontSize * 0.4;
                     const textMetrics = ctx.measureText(text);
                     const textWidth = textMetrics.width;
                     const boxWidth = textWidth + padding * 2;
                     const boxHeight = fontSize + padding * 2;
                     
-                    // 座標設定 (右下角)
                     const x = canvas.width - padding; 
                     const y = canvas.height - padding; 
 
-                    // 4. 繪製黑底 (半透明黑色背景)
+                    // 4. 繪製黑底
                     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                    // 繪製矩形 (x, y, w, h)
                     ctx.fillRect(canvas.width - boxWidth, canvas.height - boxHeight, boxWidth, boxHeight);
                     
                     // 5. 繪製白字
                     ctx.fillStyle = 'white';
                     ctx.fillText(text, x - padding/2, y - padding/2);
                     
-                    // 6. 輸出圖片
+                    // 6. 輸出
                     canvas.toBlob(blob => {
                         resolve(blob);
                     }, 'image/jpeg', 0.95);
@@ -180,22 +177,21 @@
             document.getElementById('status').innerText = '處理中 (壓縮+壓字)...';
             
             try {
-                // 1. 先壓縮
+                // 1. 壓縮
                 const options = { maxSizeMB: 0.5, maxWidthOrHeight: 1280, useWebWorker: true };
                 const compressed = await imageCompression(file, options);
                 
-                // 2. 準備浮水印文字
+                // 2. 準備文字
                 const date = document.getElementById('dateInput').value;
                 const mName = curMeal==='breakfast'?'早餐':curMeal==='lunch'?'午餐':'晚餐';
                 const watermarkText = `${date} ${mName}`;
 
-                // 3. 加上浮水印
+                // 3. 壓浮水印
                 const watermarkedBlob = await addWatermark(compressed, watermarkText);
                 
-                // 轉回 File 物件以便上傳
                 processedFile = new File([watermarkedBlob], "watermarked.jpg", { type: "image/jpeg" });
 
-                // 4. 顯示預覽
+                // 4. 顯示
                 document.getElementById('preview').src = URL.createObjectURL(processedFile);
                 document.getElementById('preview').style.display = 'block';
                 document.getElementById('submitBtn').style.display = 'block';
@@ -216,19 +212,19 @@
             document.getElementById('status').innerText = '⏳ 正在上傳至雲端...';
 
             try {
-                // 檔名：日期_對象_餐別_亂數.jpg
+                // 檔名
                 const fileName = `${date}_${curTarget}_${curMeal}_${Date.now()}.jpg`;
                 
-                // 1. 上傳圖片 (上傳已經壓好浮水印的 processedFile)
+                // 1. 上傳圖片
                 const { error: upErr } = await supabase.storage.from(BUCKET_NAME).upload(fileName, processedFile);
                 if(upErr) throw new Error('圖片上傳失敗: ' + upErr.message);
 
-                // 2. 寫入資料庫
+                // 2. 寫入資料庫 (已修正：使用 image_path)
                 const { error: dbErr } = await supabase.from('meal_logs').insert([{
                     meal_date: date,
                     meal_type: curMeal,
                     target_type: curTarget,
-                    photo_url: fileName, 
+                    image_path: fileName, // <--- 這裡改回 image_path 了！
                     uploader_email: (await supabase.auth.getUser()).data.user.email
                 }]);
                 
