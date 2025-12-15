@@ -225,8 +225,14 @@
             // 因為你的上傳程式可能會插入多筆資料，所以我們用 filter 找所有符合該日期的人
             const daySchedules = schedules.filter(s => s.date === dateStr);
             
-            // 如果有多人，用 / 分隔 (例如: 小明 / 小華)
-            const staffNames = daySchedules.map(s => s.staff_name).join(' / ');
+            // ============================================
+            // ★ 修改處：這裡加入去除重複邏輯
+            // ============================================
+            const allNames = daySchedules.map(s => s.staff_name);
+            // 使用 Set (集合) 來自動過濾重複的名字
+            const uniqueNames = [...new Set(allNames)];
+            const staffNames = uniqueNames.join(' / ');
+            
             const displayStaff = staffNames || '<span class="staff-missing">未排班</span>';
 
             // B. 找出這天的照片紀錄
