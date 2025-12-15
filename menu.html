@@ -29,6 +29,7 @@
             <button onclick="handleLogout()" class="logout-btn">登出</button>
         </div>
 
+        <!-- 1. 膳管組 -->
         <div class="group-title">🍱 膳管組</div>
         <div class="grid">
             <a href="bento.html" class="card">
@@ -37,14 +38,22 @@
             </a>
             <a href="check_records.html" class="card">
                 <span class="icon">📋</span>
-                <span>查看照片上傳紀錄</span>
+                <span>查看照片紀錄</span>
             </a>
+            
+            <!-- 營養品庫存 (專業版) -->
+            <a href="inventory_pro.html" class="card">
+                <span class="icon">📦</span>
+                <span>營養品庫存</span>
+            </a>
+
             <a href="#" class="card" onclick="alert('開發中功能')">
                 <span class="icon">🌡️</span>
                 <span>餐車溫度 (開發中)</span>
             </a>
         </div>
 
+        <!-- 2. 臨床組 -->
         <div class="group-title">🩺 臨床組</div>
         <div class="grid">
             <a href="contract.html" class="card">
@@ -53,6 +62,7 @@
             </a>
         </div>
 
+        <!-- 3. 教研組 -->
         <div class="group-title">🎓 教研組</div>
         <div class="grid">
             <div class="card disabled">
@@ -61,6 +71,7 @@
             </div>
         </div>
 
+        <!-- 4. 共用區 -->
         <div class="group-title">⚙️ 共用區</div>
         <div class="grid">
             <a href="upload_schedule.html" class="card">
@@ -79,7 +90,7 @@
         
         // Supabase 設定
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
-        const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; // 假設這是你的 Key，請確認是否完整
+        const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
         const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
 
         async function handleLogout() {
@@ -88,7 +99,7 @@
             window.location.href = 'index.html';
         }
         
-        // 登入檢查：如果沒有 session 就踢回登入頁
+        // 登入檢查
         (async () => {
             const { data } = await supabase.auth.getSession();
             if(!data.session) {
