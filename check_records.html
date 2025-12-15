@@ -12,68 +12,28 @@
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; background: #f8f9fa; margin: 0; padding: 20px; color: #333; }
         .container { max-width: 1200px; margin: 0 auto; }
-        
-        /* 頂部藍色資訊卡 */
-        .info-card {
-            background: linear-gradient(135deg, #1e88e5, #1565c0);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+        .info-card { background: linear-gradient(135deg, #1e88e5, #1565c0); color: white; padding: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .info-item h3 { margin: 0 0 5px 0; font-size: 0.9em; opacity: 0.9; }
         .info-item span { font-size: 1.8em; font-weight: bold; }
-
-        /* 控制列 */
-        .controls {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-        select, input[type="month"] {
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 1rem;
-        }
+        .controls { background: white; padding: 15px; border-radius: 8px; display: flex; gap: 10px; align-items: center; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        select, input[type="month"] { padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 1rem; }
         .btn { border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; color: white; }
         .btn-search { background-color: #1e88e5; }
         .btn-search:hover { background-color: #1565c0; }
         .btn-download { background-color: #27ae60; margin-left: auto; }
         .btn-download:hover { background-color: #219150; }
         .btn-back { background-color: #7f8c8d; text-decoration: none; display: inline-block; padding: 8px 16px; border-radius: 4px; color: white; font-weight: bold; font-size: 14px;}
-
-        /* 表格樣式 */
         .table-container { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 12px; text-align: center; border-bottom: 1px solid #eee; }
         th { background: #f8f9fa; color: #555; font-weight: bold; }
         tr:hover { background-color: #f1f2f6; }
-        
-        .status-ok { color: #27ae60; font-size: 1.2em; } /* 綠色勾勾 */
-        .status-no { color: #ffadad; font-size: 1.2em; } /* 淡紅色叉叉 */
-        
-        /* 讀取遮罩 */
-        #loading-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.8); display: none;
-            justify-content: center; align-items: center; z-index: 999;
-            font-size: 1.5em; color: #1e88e5; font-weight: bold; flex-direction: column;
-        }
-        
-        /* 週末與班表樣式 */
+        .status-ok { color: #27ae60; font-size: 1.2em; }
+        .status-no { color: #ffadad; font-size: 1.2em; }
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.8); display: none; justify-content: center; align-items: center; z-index: 999; font-size: 1.5em; color: #1e88e5; font-weight: bold; flex-direction: column; }
         .weekend { background-color: #fdf2f2; }
         .staff-name { font-weight: bold; color: #2c3e50; font-size: 1.05em; }
-        .staff-missing { color: #95a5a6; font-style: italic; font-size: 0.9em; } /* 未排班 */
+        .staff-missing { color: #95a5a6; font-style: italic; font-size: 0.9em; }
     </style>
 </head>
 <body>
@@ -83,57 +43,33 @@
 </div>
 
 <div class="container">
-    <div style="margin-bottom: 10px;">
-        <a href="menu.html" class="btn-back">⬅ 回選單</a>
-    </div>
-
+    <div style="margin-bottom: 10px;"><a href="menu.html" class="btn-back">⬅ 回選單</a></div>
     <div class="info-card">
-        <div class="info-item">
-            <h3>雲端空間使用量 (預估)</h3>
-            <span id="storage-usage">計算中...</span>
-        </div>
-        <div class="info-item" style="text-align: right;">
-            <h3>本月總照片數</h3>
-            <span id="total-photos">0 張</span>
-        </div>
+        <div class="info-item"><h3>雲端空間使用量 (預估)</h3><span id="storage-usage">計算中...</span></div>
+        <div class="info-item" style="text-align: right;"><h3>本月總照片數</h3><span id="total-photos">0 張</span></div>
     </div>
-
     <div class="controls">
-        <select id="view-mode">
-            <option value="month">每月檢視</option>
-        </select>
+        <select id="view-mode"><option value="month">每月檢視</option></select>
         <input type="month" id="month-picker">
         <button class="btn btn-search" onclick="fetchData()">🔍 查詢紀錄</button>
-        
-        <button class="btn btn-download" onclick="handleDownloadAndClear()">
-            📥 下載選取日期並清除資料
-        </button>
+        <button class="btn btn-download" onclick="handleDownloadAndClear()">📥 下載選取日期並清除資料</button>
     </div>
-
     <div class="table-container">
         <table>
             <thead>
                 <tr>
                     <th width="50"><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
                     <th width="100">日期</th>
-                    <th width="150">應值班 (BN)</th> <th colspan="2">早餐</th>
-                    <th colspan="2">午餐</th>
-                    <th colspan="2">晚餐</th>
+                    <th width="150">應值班 (BN)</th> <th colspan="2">早餐</th> <th colspan="2">午餐</th> <th colspan="2">晚餐</th>
                 </tr>
                 <tr>
-                    <th></th>
-                    <th></th>
-                    <th></th>
-                    <th style="font-size: 0.8em; color: #666;">病患</th>
-                    <th style="font-size: 0.8em; color: #666;">護家</th>
-                    <th style="font-size: 0.8em; color: #666;">病患</th>
-                    <th style="font-size: 0.8em; color: #666;">護家</th>
-                    <th style="font-size: 0.8em; color: #666;">病患</th>
-                    <th style="font-size: 0.8em; color: #666;">護家</th>
+                    <th></th><th></th><th></th>
+                    <th style="font-size:0.8em;color:#666;">病患</th><th style="font-size:0.8em;color:#666;">護家</th>
+                    <th style="font-size:0.8em;color:#666;">病患</th><th style="font-size:0.8em;color:#666;">護家</th>
+                    <th style="font-size:0.8em;color:#666;">病患</th><th style="font-size:0.8em;color:#666;">護家</th>
                 </tr>
             </thead>
-            <tbody id="record-body">
-            </tbody>
+            <tbody id="record-body"></tbody>
         </table>
     </div>
 </div>
@@ -143,7 +79,6 @@
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
     const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
-
     let currentRecords = []; 
 
     window.onload = function() {
@@ -156,27 +91,24 @@
 
     async function checkSession() {
         const { data } = await supabase.auth.getSession();
-        if(!data.session) {
-            alert("請先登入");
-            window.location.href = 'index.html';
-        } else {
-            fetchData(); 
-        }
+        if(!data.session) { alert("請先登入"); window.location.href = 'index.html'; } 
+        else { fetchData(); }
     }
 
-    // ==========================================
-    // 核心功能: 讀取 duty_roster (班表) 與 meal_records (照片)
-    // ==========================================
     async function fetchData() {
         showLoading(true, "讀取班表與照片紀錄...");
         const monthVal = document.getElementById('month-picker').value; 
         const [year, month] = monthVal.split('-');
 
+        // ==========================================
+        // 🔥 關鍵修正：修復日期計算 Bug (解決 12/31 消失問題)
+        // ==========================================
         const startDate = `${year}-${month}-01`;
-        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+        // 直接取得當月最後一天的「數字」，然後組字串，避開時區轉換問題
+        const lastDay = new Date(year, month, 0).getDate(); 
+        const endDate = `${year}-${month}-${lastDay}`;
 
-        // 1. 讀取班表 (duty_roster) - 配合你的上傳工具
-        // date 欄位對應你程式碼中的 item.date
+        // 1. 讀取班表
         const { data: scheduleData, error: scheError } = await supabase
             .from('duty_roster')
             .select('date, staff_name')
@@ -185,12 +117,12 @@
 
         if (scheError) {
             console.error(scheError);
-            alert("讀取班表失敗 (duty_roster): " + scheError.message);
+            alert("讀取班表失敗: " + scheError.message);
             showLoading(false);
             return;
         }
 
-        // 2. 讀取照片紀錄 (meal_records)
+        // 2. 讀取照片
         const { data: recordData, error: recError } = await supabase
             .from('meal_records')
             .select('*')
@@ -213,32 +145,20 @@
     function renderTable(year, month, schedules, records) {
         const tbody = document.getElementById('record-body');
         tbody.innerHTML = '';
-
-        const daysInMonth = new Date(year, month, 0).getDate();
+        const daysInMonth = new Date(year, month, 0).getDate(); // 取得當月天數
         
         for (let day = 1; day <= daysInMonth; day++) {
             const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
             const dateObj = new Date(dateStr);
             const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
 
-            // A. 找出這天是誰值班 (從 duty_roster)
-            // 因為你的上傳程式可能會插入多筆資料，所以我們用 filter 找所有符合該日期的人
             const daySchedules = schedules.filter(s => s.date === dateStr);
-            
-            // ============================================
-            // ★ 修改處：這裡加入去除重複邏輯
-            // ============================================
             const allNames = daySchedules.map(s => s.staff_name);
-            // 使用 Set (集合) 來自動過濾重複的名字
-            const uniqueNames = [...new Set(allNames)];
+            const uniqueNames = [...new Set(allNames)]; // 去除重複
             const staffNames = uniqueNames.join(' / ');
-            
             const displayStaff = staffNames || '<span class="staff-missing">未排班</span>';
 
-            // B. 找出這天的照片紀錄
             const dayRecords = records.filter(r => r.record_date === dateStr);
-            
-            // 判斷狀態
             const checkStatus = (mType, tType) => {
                 const found = dayRecords.find(r => r.meal_type === mType && r.target_type === tType);
                 return found ? `<span class="status-ok">✅</span>` : `<span class="status-no">❌</span>`;
@@ -248,42 +168,28 @@
                 <tr class="${isWeekend ? 'weekend' : ''}">
                     <td><input type="checkbox" class="date-checkbox" value="${dateStr}"></td>
                     <td style="color: #1e88e5; font-weight:bold;">${month}/${day}</td>
-                    <td class="staff-name">${displayStaff}</td> <td>${checkStatus('breakfast', 'patient')}</td>
-                    <td>${checkStatus('breakfast', 'care')}</td>
-                    
-                    <td>${checkStatus('lunch', 'patient')}</td>
-                    <td>${checkStatus('lunch', 'care')}</td>
-                    
-                    <td>${checkStatus('dinner', 'patient')}</td>
-                    <td>${checkStatus('dinner', 'care')}</td>
-                </tr>
-            `;
+                    <td class="staff-name">${displayStaff}</td> 
+                    <td>${checkStatus('breakfast', 'patient')}</td><td>${checkStatus('breakfast', 'care')}</td>
+                    <td>${checkStatus('lunch', 'patient')}</td><td>${checkStatus('lunch', 'care')}</td>
+                    <td>${checkStatus('dinner', 'patient')}</td><td>${checkStatus('dinner', 'care')}</td>
+                </tr>`;
             tbody.innerHTML += row;
         }
     }
 
-    // ==========================================
-    // 下載與清除功能
-    // ==========================================
     async function handleDownloadAndClear() {
         const checkboxes = document.querySelectorAll('.date-checkbox:checked');
         if (checkboxes.length === 0) { alert("請先勾選日期"); return; }
-
         const { data: { user } } = await supabase.auth.getUser();
-        // 為了避免 profiles 權限問題，我們這裡只簡單檢查有沒有登入
         if (!user) { alert("請先登入"); return; }
-        
-        // 額外檢查: 只有 admin 能執行 (依賴之前的 profiles table，如果 profiles 有問題會報錯)
-        // 為了保險起見，我們假設後端 policy 會擋，這裡只做提示
         if(!confirm(`⚠️ 注意：此操作需要管理員權限。\n\n即將下載並「永久刪除」選取日期的照片。\n確定嗎？`)) return;
 
         showLoading(true, "處理中...");
-
         const selectedDates = Array.from(checkboxes).map(cb => cb.value);
         const targetRecords = currentRecords.filter(r => selectedDates.includes(r.record_date));
 
         if (targetRecords.length === 0) {
-            alert("選取的日期中沒有照片資料！(無需下載或刪除)");
+            alert("選取的日期中沒有照片資料！");
             showLoading(false);
             return;
         }
@@ -291,7 +197,6 @@
         try {
             const zip = new JSZip();
             const folder = zip.folder(`備份_${selectedDates[0]}_to_${selectedDates[selectedDates.length-1]}`);
-
             const downloadPromises = targetRecords.map(async (record) => {
                 const { data, error } = await supabase.storage.from('private_photos').download(record.photo_path);
                 if (!error && data) {
@@ -299,49 +204,26 @@
                     folder.file(filename, data);
                 }
             });
-
             await Promise.all(downloadPromises);
-
             const content = await zip.generateAsync({ type: "blob" });
             saveAs(content, `照片備份_${new Date().toISOString().slice(0,10)}.zip`);
 
-            // 刪除檔案與紀錄
             const pathsToRemove = targetRecords.map(r => r.photo_path);
             if (pathsToRemove.length > 0) await supabase.storage.from('private_photos').remove(pathsToRemove);
-
             const idsToRemove = targetRecords.map(r => r.id);
             const { error: delError } = await supabase.from('meal_records').delete().in('id', idsToRemove);
-
             if (delError) throw delError;
 
             alert("✅ 完成！照片已下載並清除。");
             fetchData();
-
-        } catch (err) {
-            console.error(err);
-            alert("發生錯誤 (可能權限不足)：" + err.message);
-        } finally {
-            showLoading(false);
-        }
+        } catch (err) { console.error(err); alert("發生錯誤：" + err.message); } 
+        finally { showLoading(false); }
     }
 
-    function toggleAll(source) {
-        document.querySelectorAll('.date-checkbox').forEach(cb => cb.checked = source.checked);
-    }
-    function showLoading(show, text) {
-        document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
-        if(text) document.getElementById('loading-text').innerText = text;
-    }
-    function updateStats(data) {
-        document.getElementById('total-photos').innerText = data.length + " 張";
-        const size = (data.length * 0.5).toFixed(1);
-        document.getElementById('storage-usage').innerText = `${size} MB / 1000 MB`;
-    }
-    function translate(eng) {
-        const map = { 'breakfast': '早餐', 'lunch': '午餐', 'dinner': '晚餐', 'patient': '病患', 'care': '護家' };
-        return map[eng] || eng;
-    }
+    function toggleAll(source) { document.querySelectorAll('.date-checkbox').forEach(cb => cb.checked = source.checked); }
+    function showLoading(show, text) { document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none'; if(text) document.getElementById('loading-text').innerText = text; }
+    function updateStats(data) { document.getElementById('total-photos').innerText = data.length + " 張"; document.getElementById('storage-usage').innerText = `${(data.length * 0.5).toFixed(1)} MB / 1000 MB`; }
+    function translate(eng) { const map = { 'breakfast': '早餐', 'lunch': '午餐', 'dinner': '晚餐', 'patient': '病患', 'care': '護家' }; return map[eng] || eng; }
 </script>
-
 </body>
 </html>
