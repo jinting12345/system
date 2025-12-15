@@ -44,8 +44,15 @@
 
         input[type="file"] { margin-bottom: 10px; }
 
-        .alert-box { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 6px; }
+        .alert-box { 
+            background: #fff3cd; 
+            border-left: 4px solid #ffc107; 
+            padding: 15px; 
+            margin: 20px 0; 
+            border-radius: 6px; 
+        }
         .alert-box strong { color: #856404; }
+        .alert-box p { margin: 8px 0; color: #856404; font-size: 0.95em; }
 
         /* 登入視窗樣式 */
         #login-modal {
@@ -61,7 +68,7 @@
 </head>
 <body>
 
-<!-- 登入視窗 (因為是 Private Bucket，必須先登入) -->
+<!-- 登入視窗 -->
 <div id="login-modal">
     <div class="login-box">
         <h2>系統登入</h2>
@@ -79,7 +86,6 @@
     <div class="header">
         <h1>長照合約自動生成系統</h1>
         <p>義大醫院專用 / 支援 PDF 解析與 Word 生成</p>
-        <!-- 顯示登入狀態 -->
         <p id="user-status" style="font-size: 0.8em; color: #27ae60;"></p>
     </div>
 
@@ -109,6 +115,7 @@
         <div class="grid-form">
             <div class="form-group"><label>個案姓名</label><input type="text" id="user_name" /></div>
             <div class="form-group"><label>身分證字號</label><input type="text" id="user_id" /></div>
+            
             <div class="form-group"><label>個案電話</label><input type="text" id="user_phone" /></div>
             <div class="form-group">
                 <label>部分負擔金額</label>
@@ -118,10 +125,20 @@
                     <option value="0">0 (低收入戶)</option>
                 </select>
             </div>
+
             <div class="form-group"><label>簽約人姓名</label><input type="text" id="contractor_name" /></div>
             <div class="form-group"><label>簽約人電話</label><input type="text" id="contractor_phone" /></div>
-            <div class="form-group full-width"><label class="highlight">戶籍地址 (請確認完整性)</label><input type="text" id="household_address" /></div>
-            <div class="form-group full-width"><label class="highlight">通訊地址 (請確認完整性)</label><input type="text" id="contact_address" /></div>
+
+            <div class="form-group full-width">
+                <label class="highlight">戶籍地址 (請確認完整性)</label>
+                <input type="text" id="household_address" />
+            </div>
+
+            <div class="form-group full-width">
+                <label class="highlight">通訊地址 (請確認完整性)</label>
+                <input type="text" id="contact_address" />
+            </div>
+
             <div class="form-group"><label>訪視日期</label><input type="text" id="visit_date"></div>
             <div class="form-group"><label>合約結束日期</label><input type="text" id="end_date"></div>
         </div>
@@ -162,15 +179,28 @@
     // ============================================
     // 1. 初始化 Supabase (請填入你的 URL 和 Anon Key)
     // ============================================
+    // 請務必確認 Key 裡面沒有中文或多餘空白
     const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co'; 
-    const SUPABASE_KEY = '請填入你原本的那個長長的anon_key字串'; // ⚠️ 注意：這依然是 anon key，但權限由登入決定
+    
+    // ⚠️ 這裡填入你的 Key，我加上了 trim() 防止你複製到空白鍵
+    const RAW_KEY = '請把你的長長的anon_key字串貼在這裡'; 
+    const SUPABASE_KEY = RAW_KEY.trim(); 
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // 初始化 Supabase 客戶端
+    let supabase = null;
+    try {
+        if (SUPABASE_KEY.length > 10) {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
+    } catch (e) {
+        console.error("Supabase 初始化失敗，請檢查 Key 格式", e);
+    }
 
     // ============================================
     // 2. 登入邏輯
     // ============================================
     async function handleLogin() {
+        if (!supabase) { alert("Supabase Key 設定錯誤，請檢查程式碼"); return; }
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const msg = document.getElementById('login-msg');
@@ -179,25 +209,19 @@
             msg.innerText = "請輸入帳號密碼";
             return;
         }
-
         msg.innerText = "登入中...";
-        
-        const { data, error } = await supabase.auth.signInWithPassword({
-            email: email,
-            password: password
-        });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) {
             msg.innerText = "登入失敗: " + error.message;
         } else {
             document.getElementById('login-modal').style.display = 'none';
             document.getElementById('user-status').innerText = `目前使用者: ${data.user.email}`;
-            console.log("登入成功，已取得 Token");
         }
     }
 
-    // 檢查是否已經登入過 (重新整理頁面時)
     async function checkSession() {
+        if (!supabase) return;
         const { data } = await supabase.auth.getSession();
         if (data.session) {
             document.getElementById('login-modal').style.display = 'none';
@@ -206,14 +230,11 @@
     }
     
     // ============================================
-    // 3. Supabase 下載 (修正版 - 使用 SDK)
+    // 3. Supabase 下載 (SDK 版)
     // ============================================
     async function downloadTemplateFromSupabase() {
-        // 使用 SDK 下載，它會自動把你的「登入身分」帶入 Header
-        // 這樣才能通過 RLS 驗證
-        
-        // ⚠️ 確認 Bucket ID (大小寫敏感)
-        const bucketId = 'system_files';  // 或者是 'SYSTEM_FILES'，請看你 Dashboard
+        // 確認 Bucket ID 大小寫，請依照你 Supabase 面板上的顯示
+        const bucketId = 'system_files'; 
         const filePath = 'templates/template.docx';
 
         const { data, error } = await supabase
@@ -223,23 +244,18 @@
 
         if (error) {
             console.error('Supabase 下載錯誤:', error);
-            if (error.message.includes('Object not found')) {
-                 throw new Error("找不到檔案，請確認路徑或 Bucket 名稱大小寫");
-            }
             if (error.statusCode === '403' || error.error === 'Unauthorized') {
-                 throw new Error("權限不足：請確認您已登入，且 RLS 策略正確");
+                 throw new Error("權限驗證失敗：請確認已登入且 Bucket 設定為 Authenticated");
             }
             throw new Error(error.message);
         }
-
-        // 將 Blob 轉為 ArrayBuffer
         return await data.arrayBuffer();
     }
 
     // ============================================
-    // 其他原有邏輯 (PDF 解析 & Word 生成)
+    // 4. PDF 解析邏輯 (完整保留您原始版本)
     // ============================================
-
+    
     // 設定 PDF.js Worker
     if (window.pdfjsLib) {
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@2.16.105/build/pdf.worker.min.js';
@@ -247,24 +263,33 @@
 
     // 初始化日期與 Session
     window.onload = function() {
-        checkSession(); // 檢查登入
-        
+        checkSession();
         const today = new Date();
         const rocYear = today.getFullYear() - 1911;
         document.getElementById('visit_date').value = `${rocYear}年${today.getMonth() + 1}月${today.getDate()}日`;
         document.getElementById('end_date').value = `${rocYear+1}年${today.getMonth() + 1}月${today.getDate()}日`;
     };
 
+    // 資料清洗
     function cleanTextDeep(text) {
-        return text.replace(/※/g, "").replace(/\(里[、，]鄰[、，]郵遞區號.*?\)/g, "").replace(/[\(（]郵遞區號[:：]?\s*\d+[\)）]/g, "").replace(/[()]/g, "").replace(/[\s\n\r]/g, "");
+        return text.replace(/※/g, "")
+                   .replace(/\(里[、，]鄰[、，]郵遞區號.*?\)/g, "")
+                   .replace(/[\(（]郵遞區號[:：]?\s*\d+[\)）]/g, "") 
+                   .replace(/[()]/g, "")
+                   .replace(/[\s\n\r]/g, "");
     }
-    
+
+    // 地址擷取
     function extractAddressFromChunk(chunk) {
         const regex = /([台臺]?[^0-9\s]{2,3}[縣市].*?[號樓])/;
         const match = chunk.match(regex);
-        return match ? match[1].replace(/^[^台臺高新北桃中南基宜花東澎金連苗彰雲嘉屏]*/, "") : "";
+        if (match) {
+            return match[1].replace(/^[^台臺高新北桃中南基宜花東澎金連苗彰雲嘉屏]*/, "");
+        }
+        return "";
     }
 
+    // PDF 解析核心
     async function parsePDF() {
         if (typeof pdfjsLib === 'undefined') { alert("PDF 元件載入中..."); return; }
         const fileInput = document.getElementById('pdf_upload');
@@ -286,45 +311,102 @@
                 const textContent = await page.getTextContent();
                 fullText += textContent.items.map(item => item.str).join(""); 
             }
+            
             const cleanText = cleanTextDeep(fullText);
 
-            // 簡化解析邏輯 (保留你原本的邏輯)
+            // 提取基本資料
             let userName = "", userId = "", userPhone = "", paymentVal = "240";
             const headerMatch = cleanText.match(/姓名\/身分證字號[:：]?([^\/]+)\/([A-Z][0-9]{9})/);
             if (headerMatch) { userName = headerMatch[1].replace(/[:：]/g, ""); userId = headerMatch[2]; }
             
             const phoneMatch = cleanText.match(/個案電話.*?((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
             if (phoneMatch) userPhone = phoneMatch[1];
-
-            let contractorName = userName, contractorPhone = userPhone;
-            // (其餘解析邏輯略，保持你原本的代碼即可)
             
-            // 填入範例資料 (模擬)
+            const welfareMatch = cleanText.match(/長照福利.*?(第[一二三]類)/);
+            if (welfareMatch) {
+                if (welfareMatch[1].includes("一")) paymentVal = "0";
+                else if (welfareMatch[1].includes("二")) paymentVal = "75";
+            }
+
+            // 提取聯絡人
+            let contractorName = userName;
+            let contractorPhone = userPhone;
+            let agentMatch = cleanText.match(/代理人姓名(.*?)代理人身分證/);
+            if (!agentMatch) agentMatch = cleanText.match(/主要聯絡人姓名(.*?)主要聯絡人/);
+            if (agentMatch) {
+                let tempName = agentMatch[1].replace(/[:：]/g, "").trim();
+                if (tempName.length > 1) contractorName = tempName;
+            }
+            const agentPhoneMatch = cleanText.match(/(?:代理人|聯絡人)手機[::]?.*?((09\d{8}))/);
+            if (agentPhoneMatch) contractorPhone = agentPhoneMatch[1];
+
+            // 提取地址
+            let hAddr = "", cAddr = "";
+            const idxHouse = cleanText.indexOf("戶籍地址");
+            if (idxHouse !== -1) {
+                hAddr = extractAddressFromChunk(cleanText.substring(idxHouse, idxHouse + 120));
+            }
+            
+            let idxContact = cleanText.indexOf("通訊地址");
+            if (idxContact === -1) idxContact = cleanText.indexOf("居住通訊");
+            if (idxContact === -1 && cleanText.indexOf("居住") !== -1) {
+                 const tempIdx = cleanText.lastIndexOf("居住"); 
+                 if (tempIdx > idxHouse) idxContact = tempIdx; 
+            }
+            
+            if (idxContact !== -1) {
+                let foundAddr = extractAddressFromChunk(cleanText.substring(idxContact, idxContact + 120));
+                if (foundAddr && foundAddr !== hAddr) cAddr = foundAddr;
+            }
+            
+            // 備用方案
+            if (!hAddr || !cAddr) {
+                const allAddrRegex = /([台臺]?[^0-9\s]{2,3}[縣市].*?[號樓])/g;
+                const matches = [];
+                let m;
+                while ((m = allAddrRegex.exec(cleanText)) !== null) {
+                    let a = m[1].replace(/^[^台臺高新北桃中南基宜花東澎金連苗彰雲嘉屏]*/, "");
+                    if (!a.includes("中心") && !a.includes("醫院") && !a.includes("衛生局") && a.length > 8) matches.push(a);
+                }
+                if (!hAddr && matches.length > 0) hAddr = matches[0];
+                if (!cAddr && matches.length > 1) cAddr = matches[1];
+            }
+            if (!cAddr) cAddr = hAddr;
+
+            // 填入表單
             document.getElementById('user_name').value = userName;
             document.getElementById('user_id').value = userId;
             document.getElementById('user_phone').value = userPhone;
+            document.getElementById('payment').value = paymentVal;
+            document.getElementById('contractor_name').value = contractorName;
+            document.getElementById('contractor_phone').value = contractorPhone;
+            document.getElementById('household_address').value = hAddr;
+            document.getElementById('contact_address').value = cAddr;
+
         } catch (err) {
-            alert("解析錯誤: " + err.message);
+            alert("解析發生錯誤: " + err.message);
         } finally {
             btn.innerText = "🔍 解析資料";
             btn.disabled = false;
         }
     }
 
+    // ============================================
+    // 5. Word 生成邏輯
+    // ============================================
     function switchTemplateMode() {
         const mode = document.querySelector('input[name="template_mode"]:checked').value;
         document.getElementById('auto_mode_box').style.display = mode === 'auto' ? 'block' : 'none';
         document.getElementById('manual_mode_box').style.display = mode === 'manual' ? 'block' : 'none';
     }
 
-    // 自動模式 (使用 SDK)
     async function generateWordAuto() {
         const btn = document.querySelector('#auto_mode_box .btn-generate');
         btn.innerText = "⏳ 下載範本中...";
         btn.disabled = true;
 
         try {
-            const arrayBuffer = await downloadTemplateFromSupabase(); // 呼叫新的 SDK 函式
+            const arrayBuffer = await downloadTemplateFromSupabase();
             btn.innerText = "⏳ 生成中...";
             await generateWordFromBuffer(arrayBuffer);
         } catch (error) {
@@ -336,7 +418,6 @@
         }
     }
 
-    // 手動模式
     async function generateWordManual() {
         const templateInput = document.getElementById('template_upload');
         const btn = document.querySelector('#manual_mode_box .btn-generate');
@@ -350,23 +431,39 @@
         finally { btn.innerText = "📄 下載合約 (手動模式)"; }
     }
 
-    // 生成 Word (共用)
     async function generateWordFromBuffer(arrayBuffer) {
         if (typeof PizZip === 'undefined') { alert("系統載入中..."); return; }
         const zip = new PizZip(arrayBuffer);
-        const doc = new window.docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
+        const doc = new window.docxtemplater(zip, { 
+            paragraphLoop: true, 
+            linebreaks: true,
+            nullGetter: () => "",
+            delimiters: { start: '{{', end: '}}' }
+        });
 
-        // 收集表單資料
         const templateData = {
-            user_name: document.getElementById('user_name').value,
-            user_id: document.getElementById('user_id').value,
-            // ... 其他欄位
+            user_name: document.getElementById('user_name').value || " ",
+            user_id: document.getElementById('user_id').value || " ",
+            user_phone: document.getElementById('user_phone').value || " ",
+            payment: document.getElementById('payment').value || "0",
+            contractor_name: document.getElementById('contractor_name').value || "同使用者",
+            contractor_phone: document.getElementById('contractor_phone').value || " ",
+            household_address: document.getElementById('household_address').value || " ",
+            contact_address: document.getElementById('contact_address').value || " ",
+            visit_date: document.getElementById('visit_date').value || " ",
+            end_date: document.getElementById('end_date').value || " "
         };
 
         doc.setData(templateData);
         doc.render();
-        const blob = doc.getZip().generate({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-        saveAs(blob, `合約_${templateData.user_name || '未命名'}.docx`);
+
+        const blob = doc.getZip().generate({
+            type: "blob",
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        saveAs(blob, `義大醫院契約書_${templateData.user_name}.docx`);
+        alert("✅ 合約生成成功!");
     }
 </script>
 
