@@ -26,7 +26,6 @@
         #status { margin-top: 15px; font-weight: bold; white-space: pre-wrap; line-height: 1.5; }
         .log-box { margin-top: 15px; padding: 12px; background: #212529; color: #0f0; border-radius: 6px; max-height: 250px; overflow-y: auto; font-size: 12px; font-family: Consolas, monospace; display: none; }
 
-        /* 新增：結果預覽表格樣式 */
         #resultArea { display: none; margin-top: 20px; }
         .table-container { overflow-x: auto; border: 1px solid #dee2e6; border-radius: 6px; }
         table { width: 100%; border-collapse: collapse; background: white; }
@@ -42,13 +41,13 @@
     </div>
 
     <div class="card">
-        <h3>📅 上傳 Excel 班表 (指定月份版)</h3>
+        <h3>📅 上傳 Excel 班表 (自動覆蓋舊資料)</h3>
         
         <div class="instruction">
             <strong>💡 功能更新：</strong><br>
-            1. 預設自動抓取 Excel 中 <strong>最新的一個月份</strong>。<br>
-            2. 若要上傳特定月份（如修正舊資料），請在下方手動選擇。<br>
-            3. <strong>上傳後下方會顯示詳細清單供您核對。</strong>
+            1. 系統會自動刪除該月份舊的班表，再寫入新的 (避免重複)。<br>
+            2. 已加強過濾，會自動忽略 Excel 下方的備註文字。<br>
+            3. <strong>上傳後請務必查看下方預覽，確認名字是否正確。</strong>
         </div>
 
         <div class="form-group">
@@ -78,17 +77,13 @@
                         <th>班別代碼</th>
                     </tr>
                 </thead>
-                <tbody id="tableBody">
-                    </tbody>
+                <tbody id="tableBody"></tbody>
             </table>
         </div>
     </div>
 
     <script>
-        // 簡單的字串清理函數
         function cleanString(str) { return str ? str.replace(/[^\x20-\x7E]/g, '').trim() : ''; }
-        
-        // Supabase 設定
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
         const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
@@ -106,9 +101,8 @@
             const status = document.getElementById('status');
             const btn = document.getElementById('uploadBtn');
             const logBox = document.getElementById('log');
-            const resultArea = document.getElementById('resultArea'); // 取得結果區塊
+            const resultArea = document.getElementById('resultArea');
             
-            // 重置畫面
             resultArea.style.display = 'none'; 
             status.innerText = '';
             
@@ -127,60 +121,43 @@
                     const workbook = XLSX.read(data, {type: 'array'});
                     
                     let validSheets = [];
-
-                    // 1. 先掃描所有 Sheet
                     workbook.SheetNames.forEach(sheetName => {
                         const sheet = workbook.Sheets[sheetName];
                         const rows = XLSX.utils.sheet_to_json(sheet, {header: 1});
                         if (rows.length < 5) return;
-
                         const titleCell = rows[0][0];
                         if (!titleCell || typeof titleCell !== 'string') return;
-
                         const dateMatch = titleCell.match(/(\d{4})年(\d{1,2})月/);
                         if (dateMatch) {
-                            const year = dateMatch[1];
-                            const month = dateMatch[2].padStart(2, '0');
                             validSheets.push({
                                 sheetName: sheetName,
-                                year: year,
-                                month: month,
-                                sortKey: parseInt(year + month),
+                                year: dateMatch[1],
+                                month: dateMatch[2].padStart(2, '0'),
+                                sortKey: parseInt(dateMatch[1] + dateMatch[2].padStart(2, '0')),
                                 rows: rows
                             });
                         }
                     });
 
-                    if (validSheets.length === 0) {
-                        throw new Error("無法在檔案中識別出任何有效的月份標題 (需包含 YYYY年MM月)。");
-                    }
+                    if (validSheets.length === 0) throw new Error("無法識別月份標題 (需包含 YYYY年MM月)。");
 
-                    // 2. 決定要處理哪一個 Sheet
                     let targetSheet = null;
                     const userSelectedMonth = targetMonthInput.value;
-
                     if (userSelectedMonth) {
                         const [uYear, uMonth] = userSelectedMonth.split('-');
                         targetSheet = validSheets.find(s => s.year === uYear && s.month === uMonth);
-                        
-                        if (!targetSheet) {
-                            throw new Error(`檔案中找不到對應 ${uYear}年${uMonth}月 的工作表。`);
-                        }
-                        log(`🎯 使用者指定處理：${targetSheet.year}年${targetSheet.month}月`);
+                        if (!targetSheet) throw new Error(`找不到 ${uYear}年${uMonth}月 的工作表。`);
                     } else {
                         validSheets.sort((a, b) => b.sortKey - a.sortKey);
                         targetSheet = validSheets[0];
-                        log(`🤖 自動選擇最新月份：${targetSheet.year}年${targetSheet.month}月`);
                     }
 
-                    // 3. 開始解析
+                    // 開始解析
                     let allInsertData = [];
                     const rows = targetSheet.rows;
                     const year = targetSheet.year;
                     const month = targetSheet.month;
-                    const dayRowIndex = 2;
-                    const dayRow = rows[dayRowIndex];
-                    if (!dayRow) throw new Error("找不到日期列 (Excel 第3列)");
+                    const dayRow = rows[2]; // 第3列是日期
 
                     let colToDateMap = {}; 
                     for (let c = 1; c < dayRow.length; c++) {
@@ -195,22 +172,28 @@
                         const row = rows[r];
                         const staffName = row[0];
 
+                        // ============================================
+                        // 🔥 關鍵修改：過濾雜訊名字
+                        // ============================================
                         if (!staffName || typeof staffName !== 'string') continue;
-                        if (staffName.trim().startsWith('*') || staffName.includes('主管') || staffName.length > 8) continue;
+                        let cleanName = staffName.trim();
+                        // 1. 忽略包含 "主管", "備註", "預計" 等關鍵字的行
+                        if (cleanName.includes('主管') || cleanName.includes('備註') || cleanName.includes('預計')) continue;
+                        // 2. 忽略長度超過 5 個字的名字 (這通常是整段句子)
+                        if (cleanName.length > 5) continue;
+                        // 3. 忽略特殊符號開頭
+                        if (cleanName.startsWith('*')) continue;
 
                         for (let c in colToDateMap) {
                             const cellValue = row[c];
                             const dateStr = colToDateMap[c];
-
-                            if (cellValue && typeof cellValue === 'string') {
-                                if (cellValue.toUpperCase().includes('BN')) {
-                                    allInsertData.push({
-                                        date: dateStr,
-                                        shift: cellValue.trim(), 
-                                        staff_name: staffName.trim(),
-                                        staff_email: '' 
-                                    });
-                                }
+                            if (cellValue && typeof cellValue === 'string' && cellValue.toUpperCase().includes('BN')) {
+                                allInsertData.push({
+                                    date: dateStr,
+                                    shift: cellValue.trim(), 
+                                    staff_name: cleanName,
+                                    staff_email: '' 
+                                });
                             }
                         }
                     }
@@ -221,54 +204,58 @@
                         return;
                     }
 
-                    // --- 渲染表格 (新增的功能) ---
                     renderTable(allInsertData);
-                    // ---------------------------
 
-                    status.innerText = `📊 分析完成！\n📅 月份：${year}-${month}\n📝 筆數：${allInsertData.length} 筆\n🚀 正在寫入資料庫...`;
+                    // ============================================
+                    // 🔥 關鍵修改：先刪除舊資料，再寫入
+                    // ============================================
+                    status.innerText = `🔄 正在清理 ${year}年${month}月 的舊資料...`;
                     
+                    const startDate = `${year}-${month}-01`;
+                    // 計算月底，確保格式正確
+                    const lastDay = new Date(year, month, 0).getDate();
+                    const endDate = `${year}-${month}-${lastDay}`;
+
+                    // 1. 刪除該月份舊資料
+                    const { error: delError } = await supabase
+                        .from('duty_roster')
+                        .delete()
+                        .gte('date', startDate)
+                        .lte('date', endDate);
+                    
+                    if (delError) throw new Error("刪除舊資料失敗: " + delError.message);
+
+                    status.innerText = `🚀 舊資料已清除，正在寫入 ${allInsertData.length} 筆新資料...`;
+
+                    // 2. 寫入新資料
                     const { error } = await supabase.from('duty_roster').insert(allInsertData);
                     
                     if(error) throw error;
                     
-                    status.innerHTML = `<span style="color:#198754; font-size:1.1em;">✅ 上傳成功！已匯入 ${year}年${month}月 共 ${allInsertData.length} 筆資料。</span><br>請查看下方表格確認內容。`;
+                    status.innerHTML = `<span style="color:#198754; font-size:1.1em;">✅ 上傳成功！已更新 ${year}年${month}月 資料。</span>`;
                     log('✅ 資料庫寫入完畢。');
 
                 } catch(err) {
                     console.error(err);
-                    status.innerHTML = `<span style="color:#dc3545">❌ 上傳失敗: ${err.message || err}</span>`;
-                    log(`❌ 錯誤詳情: ${err.message}`);
+                    status.innerHTML = `<span style="color:#dc3545">❌ 失敗: ${err.message || err}</span>`;
                 } finally {
                     btn.disabled = false;
                 }
             };
-            
             reader.readAsArrayBuffer(file);
         }
 
-        // 新增：繪製表格的函數
         function renderTable(data) {
             const resultArea = document.getElementById('resultArea');
             const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = ''; // 清空舊資料
-
-            // 根據日期排序，讓表格看起來比較順
+            tbody.innerHTML = ''; 
             data.sort((a, b) => new Date(a.date) - new Date(b.date));
-
             data.forEach(item => {
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${item.date}</td>
-                    <td style="font-weight:bold;">${item.staff_name}</td>
-                    <td><span class="tag-shift">${item.shift}</span></td>
-                `;
+                tr.innerHTML = `<td>${item.date}</td><td style="font-weight:bold;">${item.staff_name}</td><td><span class="tag-shift">${item.shift}</span></td>`;
                 tbody.appendChild(tr);
             });
-
-            // 顯示區域
             resultArea.style.display = 'block';
-            
-            // 自動捲動到表格區域，方便使用者查看
             resultArea.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
     </script>
