@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>營養品庫存管理系統</title>
+    <title>營養品庫存管理系統 (進階版)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
@@ -49,7 +49,7 @@
         .bg-ok { background: #28a745; }
         .bg-warn { background: #ffc107; color: #333; }
         .bg-danger { background: #dc3545; }
-        .bg-cat { background: #6c757d; font-size: 0.9em; margin-right: 5px; } /* 分類標籤 */
+        .bg-cat { background: #6c757d; font-size: 0.9em; margin-right: 5px; } 
 
         .date-cell { font-family: Consolas, monospace; color: #555; }
         .qty-cell { font-size: 1.2em; color: #1a73e8; font-weight: bold; }
@@ -87,11 +87,11 @@
             
             <input type="file" id="excel_input" accept=".xlsx, .xls" style="display: none;" onchange="handleExcelImport(this)">
 
-            <button class="action-btn btn-import admin-only" onclick="document.getElementById('excel_input').click()">📂 匯入 Excel (多效期)</button>
+            <button class="action-btn btn-import admin-only" onclick="document.getElementById('excel_input').click()">📂 匯入 Excel</button>
             <button class="action-btn btn-in admin-only" style="background:#007bff;" onclick="openAddModal()">➕ 新增品項</button>
             
-            <button class="action-btn btn-stocktake" onclick="downloadForStockTake()">📋 下載盤點單</button>
-            <button class="action-btn btn-export" onclick="exportStock()">📥 下載總表</button>
+            <button class="action-btn btn-stocktake" onclick="downloadBlankForm()">📄 下載空白盤點表</button>
+            <button class="action-btn btn-export" onclick="exportStock()">📥 下載總庫存表</button>
         </div>
         
         <div style="overflow-x:auto;">
@@ -186,7 +186,6 @@
         loadLogs();
     })();
 
-    // 檢查權限
     async function checkUserRole() {
         const { data } = await supabase.from('user_roles').select('role').eq('email', currentUser).single();
         const roleLabel = document.getElementById('roleLabel');
@@ -207,14 +206,10 @@
         event.target.classList.add('active');
     }
 
-    // ============================================
-    // 🔥 核心：讀取庫存並整理分類
-    // ============================================
     async function loadInventory() {
         const tbody = document.getElementById('stockBody');
         tbody.innerHTML = '<tr><td colspan="7">載入中...</td></tr>';
         
-        // 依照分類 -> 品名 -> 效期(近到遠) 排序
         const { data, error } = await supabase
             .from('inventory')
             .select('*')
@@ -225,15 +220,13 @@
         if(error) { alert("讀取失敗"); console.error(error); return; }
         
         inventoryData = data || [];
-        updateCategoryFilter(inventoryData); // 更新下拉選單
+        updateCategoryFilter(inventoryData);
         renderTable(inventoryData);
     }
 
-    // 更新分類下拉選單
     function updateCategoryFilter(data) {
         const select = document.getElementById('categoryFilter');
         const currentVal = select.value;
-        // 抓出不重複的分類
         const categories = [...new Set(data.map(i => i.category || '未分類'))].sort();
         
         select.innerHTML = '<option value="ALL">📂 所有分類</option>';
@@ -247,7 +240,7 @@
         const tbody = document.getElementById('stockBody');
         tbody.innerHTML = '';
         const today = new Date();
-        const warningDate = new Date(); warningDate.setDate(today.getDate() + 90); // 3個月警示
+        const warningDate = new Date(); warningDate.setDate(today.getDate() + 90);
 
         if(data.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#999;">無庫存資料</td></tr>';
@@ -264,7 +257,6 @@
                 else if(exp < warningDate) statusBadge = '<span class="badge bg-warn">快過期</span>';
             }
 
-            // 根據權限顯示按鈕
             let actionButtons = '';
             if (isAdmin) {
                 actionButtons = `
@@ -291,7 +283,6 @@
         });
     }
 
-    // 篩選功能 (包含文字搜尋 + 分類篩選)
     function filterTable() {
         const text = document.getElementById('searchInput').value.toLowerCase();
         const cat = document.getElementById('categoryFilter').value;
@@ -305,11 +296,6 @@
         renderTable(filtered);
     }
 
-    // ============================================
-    // 動作 Modal 邏輯
-    // ============================================
-    
-    // 1. 針對現有批號操作 (補貨/領用)
     function openAction(type, id) {
         const item = inventoryData.find(i => i.id === id);
         if(!item) return;
@@ -329,7 +315,6 @@
         setupModalButton(type, item.name);
     }
 
-    // 2. 開啟全新品項視窗 (手動新增)
     function openAddModal() {
         document.getElementById('actionModal').style.display = 'flex';
         document.getElementById('newItemFields').style.display = 'block';
@@ -373,7 +358,6 @@
         btn.disabled = true;
 
         try {
-            // Case A: 新增全新品項
             if (type === 'NEW') {
                 const newName = document.getElementById('newName').value.trim();
                 const newCat = document.getElementById('newCat').value.trim();
@@ -392,7 +376,6 @@
                 if(error) throw error;
                 await logAction('新增品項', newName, qtyInput, qtyInput, newDate, note);
 
-            // Case B: 現有批號增減
             } else {
                 const id = document.getElementById('actId').value;
                 const currentQty = parseInt(document.getElementById('actCurrentQty').value);
@@ -434,9 +417,6 @@
         }]);
     }
 
-    // ============================================
-    // 🔥 Excel 匯入功能 (支援多效期)
-    // ============================================
     async function handleExcelImport(inputElement) {
         const file = inputElement.files[0];
         if (!file) return;
@@ -462,26 +442,19 @@
                     let unit = row['單位'] || row['規格'];
                     let expiry = formatExcelDate(row['有效日期']);
 
-                    if (!name || !qty) continue; 
+                    if (!name || (qty === undefined && qty === null)) continue; 
 
-                    // 1. 檢查資料庫是否已有「同名 + 同效期」的資料
                     let query = supabase.from('inventory').select('id, quantity').eq('name', name);
-                    
-                    if (expiry) {
-                        query = query.eq('expiry_date', expiry);
-                    } else {
-                        query = query.is('expiry_date', null);
-                    }
+                    if (expiry) { query = query.eq('expiry_date', expiry); } 
+                    else { query = query.is('expiry_date', null); }
 
                     const { data: existing } = await query;
 
                     if (existing && existing.length > 0) {
-                        // 如果有，更新數量 (覆蓋模式)
                         await supabase.from('inventory')
                             .update({ quantity: qty, category: cat, unit: unit }) 
                             .eq('id', existing[0].id);
                     } else {
-                        // 如果沒有，新增一筆
                         await supabase.from('inventory').insert([{
                             name: name,
                             category: cat || '未分類',
@@ -516,10 +489,8 @@
         return null;
     }
 
-    // ============================================
-    // 🔥 新功能：下載盤點單
-    // ============================================
-    function downloadForStockTake() {
+    // 🔥 下載空白盤點單 (庫存欄位清空)
+    function downloadBlankForm() {
         if(inventoryData.length === 0) return alert("目前無資料可下載");
 
         const sortedData = [...inventoryData].sort((a, b) => {
@@ -531,7 +502,7 @@
         const exportData = sortedData.map(item => ({
             "分類": item.category || '',
             "品名": item.name,
-            "庫存數量": item.quantity, 
+            "庫存數量": "", // 🔥 故意留空
             "單位": item.unit || '',
             "有效日期": item.expiry_date || ''
         }));
@@ -540,10 +511,11 @@
         ws['!cols'] = [{wch: 15}, {wch: 30}, {wch: 10}, {wch: 8}, {wch: 15}];
 
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "盤點單");
-        XLSX.writeFile(wb, `庫存盤點表_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, "盤點填寫單");
+        XLSX.writeFile(wb, `空白盤點表_${new Date().toISOString().slice(0,10)}.xlsx`);
     }
 
+    // 下載庫存總表 (有數字的)
     function exportStock() {
         if(inventoryData.length === 0) return alert("無資料可匯出");
         const exportData = inventoryData.map(item => ({
