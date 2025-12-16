@@ -73,6 +73,14 @@
         table { width: 100%; border-collapse: collapse; }
         .checkbox-cell { width: 40px; text-align: center; }
         .checkbox-cell input { width: 20px; height: 20px; cursor: pointer; }
+        
+        /* 排序輸入框樣式 */
+        .sort-input {
+            width: 50px; padding: 5px; border: 1px solid #ddd; 
+            border-radius: 6px; text-align: center; font-weight: bold;
+            background: #fff; color: #333;
+        }
+        .sort-input:focus { border-color: #007aff; outline: none; background: #eef7ff; }
 
         @media (max-width: 768px) {
             thead { display: none; }
@@ -174,7 +182,7 @@
             <thead>
                 <tr>
                     <th width="40">選</th>
-                    <th width="15%">分類</th>
+                    <th width="60">排序</th> <th width="15%">分類</th>
                     <th width="25%">品名</th>
                     <th width="10%">總庫存</th>
                     <th width="8%">單位</th>
@@ -268,6 +276,7 @@
         <div class="form-group"><label>分類</label><input type="text" id="newCat" placeholder="例: 糖尿病配方"></div>
         <div class="form-group"><label>品名</label><input type="text" id="newItemName" placeholder="產品名稱"></div>
         <div class="form-group"><label>單位</label><input type="text" id="newUnit" placeholder="例: 罐"></div>
+        <div class="form-group"><label>排序 (選填)</label><input type="number" id="newOrder" placeholder="例: 1" value="999"></div>
         <div class="form-group"><label>效期</label><input type="date" id="newItemDate"></div>
         <div class="form-group"><label>數量</label><input type="number" id="newItemQty"></div>
         <div class="modal-footer">
@@ -324,7 +333,7 @@
 
     async function loadInventory() {
         const tbody = document.getElementById('stockBody');
-        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px;">資料載入中...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px;">資料載入中...</td></tr>';
         const { data, error } = await supabase.from('inventory').select('*').order('expiry_date', { ascending: true });
         if(error) { alert("讀取失敗"); return; }
         rawInventory = data || [];
@@ -338,16 +347,50 @@
         data.forEach(item => {
             const name = item.name;
             if (!groups[name]) {
-                groups[name] = { name: name, category: item.category, unit: item.unit, totalQty: 0, batches: [] };
+                // 加入 sort_order 處理，若無資料庫值則預設 999
+                groups[name] = { 
+                    name: name, 
+                    category: item.category, 
+                    unit: item.unit, 
+                    totalQty: 0, 
+                    batches: [],
+                    sortOrder: item.sort_order || 999 
+                };
             }
             groups[name].totalQty += item.quantity;
             groups[name].batches.push(item);
         });
+        
         groupedInventory = Object.values(groups).sort((a, b) => {
+            // 🔥🔥🔥 排序邏輯修改：先比 sortOrder (數字小在前)，再比分類，再比品名
+            const orderDiff = (a.sortOrder - b.sortOrder);
+            if (orderDiff !== 0) return orderDiff;
+
             const catA = a.category || 'zzz';
             const catB = b.category || 'zzz';
             return catA.localeCompare(catB) || a.name.localeCompare(b.name);
         });
+    }
+
+    // 🔥🔥🔥 新增：更新排序功能
+    async function updateSortOrder(name, newOrder) {
+        // 更新 UI 避免跳動太快
+        const group = groupedInventory.find(g => g.name === name);
+        if(group) group.sortOrder = parseInt(newOrder) || 999;
+        
+        // 更新資料庫 (該品名下所有批次都要更新)
+        const { error } = await supabase.from('inventory')
+            .update({ sort_order: parseInt(newOrder) || 999 })
+            .eq('name', name);
+            
+        if(error) {
+            console.error(error);
+            alert("排序更新失敗");
+        } else {
+            // 重新整理列表以反映排序
+            groupData(rawInventory); 
+            renderTable();
+        }
     }
 
     function updateCategoryFilter() {
@@ -373,7 +416,7 @@
         });
 
         if (filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:#999;">查無資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:20px; color:#999;">查無資料</td></tr>';
             return;
         }
 
@@ -382,13 +425,12 @@
             const nearestBatch = validBatches.length > 0 ? validBatches[0] : null;
             
             let dateDisplay = '無效期';
-            let statusBadge = '<span class="badge bg-gray">大於2個月</span>'; // 預設改為大於2個月
+            let statusBadge = '<span class="badge bg-gray">大於2個月</span>';
             
             if (nearestBatch) {
                 dateDisplay = nearestBatch.expiry_date;
                 const diffDays = Math.ceil((new Date(nearestBatch.expiry_date) - today) / (1000 * 60 * 60 * 24)); 
                 
-                // 🔥🔥 效期顏色邏輯 (依需求修正) 🔥🔥
                 if (diffDays < 0) {
                     statusBadge = '<span class="badge bg-red">已過期</span>';
                 } else if (diffDays <= 15) {
@@ -406,8 +448,13 @@
             const qtyClass = group.totalQty === 0 ? 'qty-zero' : 'qty-cell';
             const isChecked = selectedItems.has(group.name) ? 'checked' : '';
             
+            // 🔥🔥🔥 修改了這裡，加入了排序輸入框
             tr.innerHTML = `
                 <td class="checkbox-cell"><input type="checkbox" class="item-check" value="${group.name}" ${isChecked} onchange="toggleSelection('${group.name}', this)"></td>
+                <td data-label="排序">
+                    <input type="number" class="sort-input" value="${group.sortOrder === 999 ? '' : group.sortOrder}" placeholder="-" 
+                    onchange="updateSortOrder('${group.name}', this.value)">
+                </td>
                 <td data-label="分類"><span class="badge bg-cat">${group.category || '未分類'}</span></td>
                 <td data-label="品名" style="font-weight:bold; font-size:1.1em;">${group.name}</td>
                 <td data-label="總庫存" class="${qtyClass}">${group.totalQty}</td>
@@ -595,7 +642,8 @@
         const group = groupedInventory.find(g => g.name === currentDetailItemName);
         if(!confirm(`確認入庫 ${currentDetailItemName}？`)) return;
         try {
-            const { error } = await supabase.from('inventory').insert([{ name: group.name, category: group.category, unit: group.unit, expiry_date: date || null, quantity: qty }]);
+            // 自動帶入目前的 sortOrder
+            const { error } = await supabase.from('inventory').insert([{ name: group.name, category: group.category, unit: group.unit, expiry_date: date || null, quantity: qty, sort_order: group.sortOrder }]);
             if (error) throw error;
             await logAction('入庫', group.name, qty, qty, date, '手動補貨');
             alert("✅ 成功");
@@ -610,11 +658,12 @@
         const name = document.getElementById('newItemName').value.trim();
         const cat = document.getElementById('newCat').value.trim();
         const unit = document.getElementById('newUnit').value.trim();
+        const order = document.getElementById('newOrder').value; // 新增排序
         const date = document.getElementById('newItemDate').value;
         const qty = parseInt(document.getElementById('newItemQty').value);
         if(!name) return alert("品名必填");
         try {
-            const { error } = await supabase.from('inventory').insert([{ name: name, category: cat || '未分類', unit: unit || '罐', expiry_date: date || null, quantity: qty || 0 }]);
+            const { error } = await supabase.from('inventory').insert([{ name: name, category: cat || '未分類', unit: unit || '罐', expiry_date: date || null, quantity: qty || 0, sort_order: order || 999 }]);
             if(error) throw error;
             await logAction('建檔', name, qty, qty, date, '新增品項');
             alert("✅ 成功"); closeModal('newItemModal'); loadInventory();
@@ -638,11 +687,13 @@
                 for (let row of jsonData) {
                     let name = row['品名'], qty = row['數量']||row['庫存'], expiry = formatExcelDate(row['有效日期']), cat = row['分類'], unit = row['單位'];
                     if(!name || qty==null) continue;
-                    let q = supabase.from('inventory').select('id').eq('name', name);
+                    let q = supabase.from('inventory').select('id, sort_order').eq('name', name);
                     if(expiry) q = q.eq('expiry_date', expiry); else q = q.is('expiry_date', null);
                     const { data: ex } = await q;
+                    
+                    // 保留舊的 sort_order，或是預設 999
                     if(ex && ex.length > 0) await supabase.from('inventory').update({ quantity: qty, category: cat, unit: unit }).eq('id', ex[0].id);
-                    else await supabase.from('inventory').insert([{ name, quantity: qty, category: cat||'未分類', unit: unit||'罐', expiry_date: expiry }]);
+                    else await supabase.from('inventory').insert([{ name, quantity: qty, category: cat||'未分類', unit: unit||'罐', expiry_date: expiry, sort_order: 999 }]);
                     count++;
                 }
                 alert(`✅ 處理 ${count} 筆`); input.value = ''; loadInventory();
@@ -664,8 +715,9 @@
         const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "盤點單"); XLSX.writeFile(wb, `空白盤點表.xlsx`);
     }
     function exportStock() {
-        const exportData = rawInventory.map(i => ({ "分類": i.category, "品名": i.name, "庫存": i.quantity, "單位": i.unit, "效期": i.expiry_date||"無" }));
-        exportData.sort((a,b) => a['分類'].localeCompare(b['分類']) || a['品名'].localeCompare(b['品名']));
+        const exportData = rawInventory.map(i => ({ "分類": i.category, "品名": i.name, "庫存": i.quantity, "單位": i.unit, "效期": i.expiry_date||"無", "排序": i.sort_order }));
+        // 匯出也要照順序
+        exportData.sort((a,b) => (a['排序']||999) - (b['排序']||999) || a['分類'].localeCompare(b['分類']));
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "庫存"); XLSX.writeFile(wb, `庫存總表.xlsx`);
     }
