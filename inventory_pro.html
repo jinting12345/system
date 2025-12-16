@@ -2,95 +2,132 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>營養品庫存管理系統 (進階版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>營養品庫存管理系統 (手機優化版)</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; background: #f5f7fa; margin: 0; padding: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 10px; color: #333; }
         .container { max-width: 1100px; margin: 0 auto; }
         
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .back-btn { text-decoration: none; color: #666; font-weight: bold; }
-        h2 { margin: 0; color: #2c3e50; }
-        .role-badge { font-size: 12px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; color: white; }
+        /* Header */
+        .header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+        .back-btn { text-decoration: none; color: #666; font-weight: bold; font-size: 0.9em; display: flex; align-items: center; gap: 5px; }
+        h2 { margin: 0; color: #2c3e50; font-size: 1.2em; }
+        .role-badge { font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 5px; color: white; vertical-align: middle; }
 
-        .tabs { display: flex; gap: 10px; margin-bottom: 15px; }
-        .tab-btn { padding: 10px 20px; border: none; background: #e0e0e0; cursor: pointer; border-radius: 5px 5px 0 0; font-weight: bold; color: #555; }
-        .tab-btn.active { background: #1a73e8; color: white; }
+        /* Tabs */
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; overflow-x: auto; padding-bottom: 5px; }
+        .tab-btn { flex: 1; padding: 12px; border: none; background: #e4e6eb; cursor: pointer; border-radius: 8px; font-weight: bold; color: #65676b; white-space: nowrap; transition: 0.2s; font-size: 0.95em; }
+        .tab-btn.active { background: #1a73e8; color: white; box-shadow: 0 2px 4px rgba(26,115,232,0.3); }
 
-        .tab-content { display: none; background: white; padding: 20px; border-radius: 0 5px 5px 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        /* 控制區 */
-        .controls { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
-        .search-input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 4px; min-width: 150px; }
-        .category-select { padding: 10px; border: 1px solid #1a73e8; border-radius: 4px; color: #1a73e8; font-weight: bold; background: white; cursor: pointer; }
+        /* Controls (搜尋區) */
+        .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .search-input, .category-select { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; /* 防止 iOS 放大 */ }
+        .search-input { flex: 2; min-width: 200px; }
+        .category-select { flex: 1; min-width: 140px; }
 
-        .action-btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; color: white; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; }
-        .btn-in { background: #28a745; } 
-        .btn-out { background: #dc3545; } 
-        .btn-import { background: #17a2b8; } 
-        .btn-export { background: #6f42c1; } 
-        .btn-stocktake { background: #e67e22; } 
-        .btn-detail { background: #1a73e8; } /* 藍色詳情按鈕 */
+        /* 按鈕群組 */
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; width: 100%; margin-top: 5px; }
+        .action-btn { padding: 10px 16px; border: none; border-radius: 8px; cursor: pointer; color: white; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 0.9em; transition: 0.2s; }
+        .action-btn:active { transform: scale(0.98); }
         
+        .btn-in { background: #34c759; } 
+        .btn-out { background: #ff3b30; } 
+        .btn-import { background: #007aff; } 
+        .btn-export { background: #5856d6; } 
+        .btn-stocktake { background: #ff9500; } 
+        .btn-detail { background: #007aff; width: 100%; margin-top: 5px; } /* 手機版詳情按鈕滿版 */
+
         .admin-only { display: none; }
 
-        /* 表格優化 */
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
-        th { background: #f1f3f5; color: #444; font-weight: bold; white-space: nowrap; }
-        tr:hover { background-color: #f8f9fa; }
-
-        /* 效期警示 */
-        .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; color: white; font-weight: bold; display: inline-block; min-width: 60px; text-align: center; }
-        .bg-ok { background: #28a745; }
-        .bg-warn { background: #ffc107; color: #333; }
-        .bg-danger { background: #dc3545; }
-        .bg-cat { background: #6c757d; font-size: 0.9em; margin-right: 5px; } 
+        /* RWD 表格轉卡片 (核心魔法) */
+        table { width: 100%; border-collapse: collapse; }
         
-        /* 🔥 新增：急迫警示 (小於1個月) */
-        .bg-urgent { background: #dc3545; animation: pulse 2s infinite; }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.7; }
-            100% { opacity: 1; }
+        @media (max-width: 768px) {
+            /* 隱藏原本的表頭 */
+            thead { display: none; }
+            
+            /* 將每一列變成卡片 */
+            tr { display: block; background: white; border-radius: 12px; margin-bottom: 15px; padding: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border: 1px solid #eee; position: relative; }
+            
+            /* 每個儲存格變一行 */
+            td { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; text-align: right; }
+            td:last-child { border-bottom: none; padding-bottom: 0; flex-direction: column; gap: 10px; }
+            
+            /* 利用 data-label 屬性顯示欄位名稱 */
+            td::before { content: attr(data-label); font-weight: bold; color: #888; text-align: left; margin-right: 15px; font-size: 0.9em; }
+            
+            /* 特別樣式調整 */
+            .qty-cell { font-size: 1.4em !important; }
+            .action-btn { width: 100%; padding: 12px; }
+            
+            /* 調整控制區 */
+            .controls { flex-direction: column; }
+            .search-input, .category-select { width: 100%; }
         }
 
+        @media (min-width: 769px) {
+            /* 電腦版維持表格樣式 */
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+            th { background: #f8f9fa; color: #555; font-weight: bold; white-space: nowrap; }
+            tr:hover { background-color: #f8f9fa; }
+            .btn-group { width: auto; }
+        }
+
+        /* 狀態標籤 */
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; color: white; font-weight: bold; display: inline-block; }
+        .bg-ok { background: #34c759; }
+        .bg-warn { background: #ff9500; }
+        .bg-danger { background: #ff3b30; }
+        .bg-urgent { background: #ff3b30; animation: pulse 2s infinite; }
+        .bg-cat { background: #8e8e93; font-size: 0.85em; }
+
         .date-cell { font-family: Consolas, monospace; color: #555; }
-        .qty-cell { font-size: 1.2em; color: #1a73e8; font-weight: bold; }
+        .qty-cell { font-size: 1.1em; color: #007aff; font-weight: 800; }
         .qty-zero { color: #ccc; font-weight: normal; }
 
-        /* Modal 通用 */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
-        .modal-content { background: white; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-height: 85vh; overflow-y: auto; }
+        /* Modal 優化 */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end; /* 手機版從下方滑出 */ z-index: 1000; }
+        .modal-content { background: white; width: 100%; max-width: 500px; padding: 25px; border-radius: 20px 20px 0 0; box-shadow: 0 -4px 20px rgba(0,0,0,0.15); max-height: 90vh; overflow-y: auto; animation: slideUp 0.3s ease-out; }
         
-        /* 詳細清單 Modal 特規 */
-        .batch-list { list-style: none; padding: 0; margin-top: 10px; }
-        .batch-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
-        .batch-item:last-child { border-bottom: none; }
-        .batch-info { display: flex; flex-direction: column; }
-        .batch-actions { display: flex; gap: 5px; }
-        .btn-sm { padding: 4px 8px; font-size: 12px; }
+        @media (min-width: 769px) {
+            .modal { align-items: center; }
+            .modal-content { border-radius: 12px; width: 90%; }
+        }
 
+        @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+        /* 詳細清單 */
+        .batch-list { list-style: none; padding: 0; margin-top: 15px; }
+        .batch-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #eee; margin-bottom: 10px; border-radius: 8px; background: #fafafa; }
+        .batch-info { display: flex; flex-direction: column; gap: 4px; }
+        .batch-actions { display: flex; gap: 8px; }
+        
         .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
-        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; color: #333; }
+        .form-group input, .form-group select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; box-sizing: border-box; background: #fff; }
+        
+        .modal-footer { display: flex; gap: 10px; margin-top: 25px; }
+        .modal-footer button { flex: 1; padding: 12px; }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header">
-        <a href="menu.html" class="back-btn">⬅ 回選單</a>
-        <h2>📦 營養品庫存管理 <span id="roleLabel"></span></h2>
-        <div style="font-size:14px; color:#666;" id="userInfo">載入中...</div>
+        <div class="header-top">
+            <h2>📦 庫存管理 <span id="roleLabel"></span></h2>
+            <a href="menu.html" class="back-btn">⬅ 選單</a>
+        </div>
+        <div style="font-size:13px; color:#888;" id="userInfo">載入中...</div>
     </div>
 
     <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('stock')">📊 總庫存列表</button>
+        <button class="tab-btn active" onclick="switchTab('stock')">📊 庫存列表</button>
         <button class="tab-btn" onclick="switchTab('logs')">📝 進出紀錄</button>
     </div>
 
@@ -102,41 +139,40 @@
 
             <input type="text" id="searchInput" class="search-input" placeholder="搜尋品名..." onkeyup="renderTable()">
             
-            <input type="file" id="excel_input" accept=".xlsx, .xls" style="display: none;" onchange="handleExcelImport(this)">
-
-            <button class="action-btn btn-import admin-only" onclick="document.getElementById('excel_input').click()">📂 匯入 Excel</button>
-            <button class="action-btn btn-in admin-only" style="background:#007bff;" onclick="openNewItemModal()">➕ 新增品項</button>
-            
-            <button class="action-btn btn-stocktake" onclick="downloadBlankForm()">📄 下載空白盤點表</button>
-            <button class="action-btn btn-export" onclick="exportStock()">📥 下載總庫存表</button>
+            <div class="btn-group">
+                <input type="file" id="excel_input" accept=".xlsx, .xls" style="display: none;" onchange="handleExcelImport(this)">
+                <button class="action-btn btn-import admin-only" onclick="document.getElementById('excel_input').click()">📂 匯入</button>
+                <button class="action-btn btn-in admin-only" style="background:#007bff;" onclick="openNewItemModal()">➕ 新增</button>
+                <button class="action-btn btn-stocktake" onclick="downloadBlankForm()">📄 盤點表</button>
+                <button class="action-btn btn-export" onclick="exportStock()">📥 總表</button>
+            </div>
         </div>
         
-        <div style="overflow-x:auto;">
-            <table id="stockTable">
-                <thead>
-                    <tr>
-                        <th width="15%">分類</th>
-                        <th width="25%">品名</th>
-                        <th width="10%">總庫存</th>
-                        <th width="8%">單位</th>
-                        <th width="20%">最近有效日期</th> <th width="12%">狀態</th>
-                        <th width="10%">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="stockBody"></tbody>
-            </table>
-        </div>
+        <table id="stockTable">
+            <thead>
+                <tr>
+                    <th width="15%">分類</th>
+                    <th width="25%">品名</th>
+                    <th width="10%">總庫存</th>
+                    <th width="8%">單位</th>
+                    <th width="20%">最近效期</th>
+                    <th width="12%">狀態</th>
+                    <th width="10%">操作</th>
+                </tr>
+            </thead>
+            <tbody id="stockBody"></tbody>
+        </table>
     </div>
 
     <div id="logs" class="tab-content">
-        <div class="controls" style="justify-content: space-between;">
-            <h3>最近 50 筆異動</h3>
-            <button class="action-btn btn-export" onclick="exportLogs()">📥 下載紀錄</button>
+        <div class="controls" style="flex-direction: row; justify-content: space-between; align-items: center;">
+            <h3 style="margin:0;">異動紀錄</h3>
+            <button class="action-btn btn-export" style="width: auto;" onclick="exportLogs()">📥 下載</button>
         </div>
         <table id="logTable">
             <thead>
                 <tr>
-                    <th>時間</th> <th>動作</th> <th>品名</th> <th>異動量</th> <th>效期</th> <th>操作人</th> <th>備註</th>
+                    <th>時間</th> <th>動作</th> <th>品名</th> <th>量</th> <th>效期</th> <th>人</th> <th>備註</th>
                 </tr>
             </thead>
             <tbody id="logBody"></tbody>
@@ -146,44 +182,42 @@
 
 <div id="detailModal" class="modal">
     <div class="modal-content">
-        <h3 id="detailTitle" style="border-bottom: 2px solid #1a73e8; padding-bottom: 10px;">品項詳情</h3>
-        <p style="color: #666; font-size: 0.9em;">以下是此品項的所有效期批號。請針對特定批號進行操作。</p>
+        <h3 id="detailTitle" style="margin-top:0; border-bottom: 2px solid #f0f0f0; padding-bottom: 15px;">品項詳情</h3>
         
-        <div style="max-height: 300px; overflow-y: auto;">
-            <ul id="batchList" class="batch-list">
-                </ul>
+        <div style="max-height: 40vh; overflow-y: auto;">
+            <ul id="batchList" class="batch-list"></ul>
         </div>
 
-        <div style="margin-top: 20px; padding-top: 10px; border-top: 1px solid #eee;">
-            <h4>➕ 新增批號 (新效期進貨)</h4>
-            <div style="display: flex; gap: 5px;">
-                <input type="date" id="newBatchDate" style="flex: 1; padding: 5px;">
-                <input type="number" id="newBatchQty" placeholder="數量" style="width: 80px; padding: 5px;">
-                <button class="action-btn btn-in btn-sm" onclick="addNewBatch()">入庫</button>
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #f0f0f0; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <h4 style="margin:0 0 10px 0;">➕ 新效期入庫</h4>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <input type="date" id="newBatchDate" style="flex: 2; padding: 10px;">
+                <input type="number" id="newBatchQty" placeholder="數量" style="flex: 1; padding: 10px; min-width: 60px;">
+                <button class="action-btn btn-in" style="flex: 1;" onclick="addNewBatch()">入庫</button>
             </div>
         </div>
 
         <div class="modal-footer">
-            <button class="action-btn" style="background:#666;" onclick="closeModal('detailModal')">關閉</button>
+            <button class="action-btn" style="background:#e4e6eb; color:#333;" onclick="closeModal('detailModal')">關閉</button>
         </div>
     </div>
 </div>
 
 <div id="actionModal" class="modal">
-    <div class="modal-content" style="max-width: 350px;">
-        <h3 id="actionTitle">執行動作</h3>
+    <div class="modal-content">
+        <h3 id="actionTitle" style="margin-top:0;">執行動作</h3>
         
         <div class="form-group">
             <label>品名</label>
-            <input type="text" id="actName" disabled style="background:#eee;">
+            <input type="text" id="actName" disabled style="background:#f5f5f5; border-color: transparent;">
         </div>
         <div class="form-group">
             <label>效期</label>
-            <input type="text" id="actDate" disabled style="background:#eee;">
+            <input type="text" id="actDate" disabled style="background:#f5f5f5; border-color: transparent;">
         </div>
         <div class="form-group">
             <label>數量</label>
-            <input type="number" id="actQty" placeholder="請輸入數量">
+            <input type="number" id="actQty" placeholder="請輸入數量" inputmode="numeric">
         </div>
         <div class="form-group">
             <label>備註</label>
@@ -195,7 +229,7 @@
         <input type="hidden" id="actCurrentQty">
 
         <div class="modal-footer">
-            <button class="action-btn" style="background:#666;" onclick="closeModal('actionModal')">取消</button>
+            <button class="action-btn" style="background:#e4e6eb; color:#333;" onclick="closeModal('actionModal')">取消</button>
             <button class="action-btn" id="confirmBtn" onclick="submitAction()">確認</button>
         </div>
     </div>
@@ -203,15 +237,15 @@
 
 <div id="newItemModal" class="modal">
     <div class="modal-content">
-        <h3>✨ 新增全新庫存品項</h3>
-        <div class="form-group"><label>分類</label><input type="text" id="newCat" placeholder="例如: 糖尿病配方"></div>
-        <div class="form-group"><label>品名</label><input type="text" id="newItemName" placeholder="輸入產品名稱"></div>
-        <div class="form-group"><label>單位</label><input type="text" id="newUnit" placeholder="例如: 罐, 箱"></div>
-        <div class="form-group"><label>初始效期</label><input type="date" id="newItemDate"></div>
-        <div class="form-group"><label>初始數量</label><input type="number" id="newItemQty"></div>
+        <h3 style="margin-top:0;">✨ 新增品項</h3>
+        <div class="form-group"><label>分類</label><input type="text" id="newCat" placeholder="例: 糖尿病配方"></div>
+        <div class="form-group"><label>品名</label><input type="text" id="newItemName" placeholder="產品名稱"></div>
+        <div class="form-group"><label>單位</label><input type="text" id="newUnit" placeholder="例: 罐"></div>
+        <div class="form-group"><label>效期</label><input type="date" id="newItemDate"></div>
+        <div class="form-group"><label>數量</label><input type="number" id="newItemQty" inputmode="numeric"></div>
 
         <div class="modal-footer">
-            <button class="action-btn" style="background:#666;" onclick="closeModal('newItemModal')">取消</button>
+            <button class="action-btn" style="background:#e4e6eb; color:#333;" onclick="closeModal('newItemModal')">取消</button>
             <button class="action-btn btn-in" onclick="submitNewItem()">確認新增</button>
         </div>
     </div>
@@ -223,13 +257,12 @@
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
 
-    let rawInventory = []; // 原始資料
-    let groupedInventory = []; // 合併後的資料
+    let rawInventory = [];
+    let groupedInventory = [];
     let currentUser = '';
     let isAdmin = false;
-    let currentDetailItemName = ''; // 用於紀錄當前打開詳情視窗的品項名
+    let currentDetailItemName = '';
 
-    // 初始化
     (async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if(!session) window.location.href = 'index.html';
@@ -247,10 +280,10 @@
         if (data && data.role === 'admin') {
             isAdmin = true;
             document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-flex');
-            roleLabel.innerHTML = '<span class="role-badge" style="background:#dc3545;">管理員</span>';
+            roleLabel.innerHTML = '<span class="role-badge" style="background:#ff3b30;">Admin</span>';
         } else {
             isAdmin = false;
-            roleLabel.innerHTML = '<span class="role-badge" style="background:#28a745;">一般人員</span>';
+            roleLabel.innerHTML = '<span class="role-badge" style="background:#34c759;">User</span>';
         }
     }
 
@@ -261,19 +294,12 @@
         event.target.classList.add('active');
     }
 
-    // ==========================================
-    // 🔥 核心邏輯：讀取並分組
-    // ==========================================
     async function loadInventory() {
         const tbody = document.getElementById('stockBody');
-        tbody.innerHTML = '<tr><td colspan="7">載入中...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">資料載入中...</td></tr>';
         
-        const { data, error } = await supabase
-            .from('inventory')
-            .select('*')
-            .order('expiry_date', { ascending: true }); // 先按效期排，確保後面分組時也是有序的
-
-        if(error) { alert("讀取失敗"); console.error(error); return; }
+        const { data, error } = await supabase.from('inventory').select('*').order('expiry_date', { ascending: true });
+        if(error) { alert("讀取失敗"); return; }
         
         rawInventory = data || [];
         groupData(rawInventory);
@@ -281,26 +307,16 @@
         renderTable();
     }
 
-    // 將原始資料依照「品名」分組
     function groupData(data) {
         const groups = {};
-        
         data.forEach(item => {
             const name = item.name;
             if (!groups[name]) {
-                groups[name] = {
-                    name: name,
-                    category: item.category,
-                    unit: item.unit,
-                    totalQty: 0,
-                    batches: [] // 存放該品項的所有批號
-                };
+                groups[name] = { name: name, category: item.category, unit: item.unit, totalQty: 0, batches: [] };
             }
             groups[name].totalQty += item.quantity;
             groups[name].batches.push(item);
         });
-
-        // 轉回陣列並排序 (分類 -> 品名)
         groupedInventory = Object.values(groups).sort((a, b) => {
             const catA = a.category || 'zzz';
             const catB = b.category || 'zzz';
@@ -312,11 +328,8 @@
         const select = document.getElementById('categoryFilter');
         const currentVal = select.value;
         const categories = [...new Set(groupedInventory.map(i => i.category || '未分類'))].sort();
-        
         select.innerHTML = '<option value="ALL">📂 所有分類</option>';
-        categories.forEach(cat => {
-            select.innerHTML += `<option value="${cat}">${cat}</option>`;
-        });
+        categories.forEach(cat => select.innerHTML += `<option value="${cat}">${cat}</option>`);
         select.value = currentVal;
     }
 
@@ -327,7 +340,6 @@
         const today = new Date();
 
         tbody.innerHTML = '';
-
         const filtered = groupedInventory.filter(group => {
             const matchText = group.name.toLowerCase().includes(searchText);
             const matchCat = filterCat === 'ALL' || group.category === filterCat;
@@ -335,13 +347,11 @@
         });
 
         if (filtered.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#999;">查無資料</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#999;">查無資料</td></tr>';
             return;
         }
 
         filtered.forEach(group => {
-            // 找出最近的效期 (batches 已經在 loadInventory 時按效期排序了，所以取第一個有效日期即可)
-            // 過濾掉沒有效期的批號放在最後
             const validBatches = group.batches.filter(b => b.expiry_date);
             const nearestBatch = validBatches.length > 0 ? validBatches[0] : null;
             
@@ -350,52 +360,40 @@
             
             if (nearestBatch) {
                 dateDisplay = nearestBatch.expiry_date;
-                const expDate = new Date(nearestBatch.expiry_date);
-                const diffTime = expDate - today;
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-
-                if (diffDays < 0) {
-                    statusBadge = '<span class="badge bg-danger">已過期</span>';
-                } else if (diffDays <= 30) {
-                    // 🔥 需求：小於一個月特別標示
-                    statusBadge = '<span class="badge bg-urgent">🚨 30天內到期</span>';
-                } else if (diffDays <= 90) {
-                    statusBadge = '<span class="badge bg-warn">3個月內</span>';
-                }
+                const diffDays = Math.ceil((new Date(nearestBatch.expiry_date) - today) / (1000 * 60 * 60 * 24)); 
+                if (diffDays < 0) statusBadge = '<span class="badge bg-danger">已過期</span>';
+                else if (diffDays <= 30) statusBadge = '<span class="badge bg-urgent">🚨 30天</span>';
+                else if (diffDays <= 90) statusBadge = '<span class="badge bg-warn">3個月</span>';
             }
 
             const tr = document.createElement('tr');
-            // 即便是 0 也顯示
             const qtyClass = group.totalQty === 0 ? 'qty-zero' : 'qty-cell';
             
+            // 手機版使用 data-label 顯示標題
             tr.innerHTML = `
-                <td><span class="badge bg-cat">${group.category || '未分類'}</span></td>
-                <td style="font-weight:bold;">${group.name}</td>
-                <td class="${qtyClass}">${group.totalQty}</td>
-                <td>${group.unit || '罐'}</td>
-                <td class="date-cell">${dateDisplay}</td>
-                <td>${statusBadge}</td>
-                <td>
-                    <button class="action-btn btn-detail" onclick="openDetailModal('${group.name}')">管理 / 詳情</button>
+                <td data-label="分類"><span class="badge bg-cat">${group.category || '未分類'}</span></td>
+                <td data-label="品名" style="font-weight:bold; font-size:1.1em;">${group.name}</td>
+                <td data-label="總庫存" class="${qtyClass}">${group.totalQty}</td>
+                <td data-label="單位">${group.unit || '罐'}</td>
+                <td data-label="最近效期" class="date-cell">${dateDisplay}</td>
+                <td data-label="狀態">${statusBadge}</td>
+                <td data-label="操作">
+                    <button class="action-btn btn-detail" onclick="openDetailModal('${group.name}')">詳情 / 領補</button>
                 </td>
             `;
             tbody.appendChild(tr);
         });
     }
 
-    // ==========================================
-    // 🔥 詳情視窗 (Detail Modal)
-    // ==========================================
     function openDetailModal(itemName) {
         const group = groupedInventory.find(g => g.name === itemName);
         if (!group) return;
 
         currentDetailItemName = itemName;
-        document.getElementById('detailTitle').innerText = `${itemName} - 庫存詳情`;
+        document.getElementById('detailTitle').innerText = `${itemName}`;
         const list = document.getElementById('batchList');
         list.innerHTML = '';
 
-        // 排序批號：有效日期近的在上面
         const sortedBatches = group.batches.sort((a, b) => {
             if (!a.expiry_date) return 1;
             if (!b.expiry_date) return -1;
@@ -404,73 +402,49 @@
 
         sortedBatches.forEach(batch => {
             const dateStr = batch.expiry_date || '無效期';
-            const isZero = batch.quantity === 0;
-            const style = isZero ? 'color:#ccc;' : '';
-
-            // 判斷是否過期
-            let alertIcon = '';
-            if (batch.expiry_date) {
-                const days = (new Date(batch.expiry_date) - new Date()) / (1000 * 60 * 60 * 24);
-                if (days < 0) alertIcon = '💀';
-                else if (days < 30) alertIcon = '🚨';
-            }
-
+            const days = batch.expiry_date ? (new Date(batch.expiry_date) - new Date()) / (1000 * 60 * 60 * 24) : 999;
+            let icon = days < 0 ? '💀' : (days < 30 ? '🚨' : '📅');
+            
             const li = document.createElement('li');
             li.className = 'batch-item';
-            li.style = style;
+            if(batch.quantity === 0) li.style.opacity = '0.6';
+            
             li.innerHTML = `
                 <div class="batch-info">
-                    <span style="font-weight:bold; font-family:Consolas;">效期：${dateStr} ${alertIcon}</span>
-                    <span>數量：<strong style="font-size:1.1em;">${batch.quantity}</strong> ${group.unit}</span>
+                    <div style="font-weight:bold; color:#555;">${icon} ${dateStr}</div>
+                    <div>數量：<strong style="font-size:1.2em; color:#007aff;">${batch.quantity}</strong> ${group.unit}</div>
                 </div>
                 <div class="batch-actions">
-                    <button class="action-btn btn-in btn-sm" onclick="openSingleAction('IN', '${batch.id}', '${batch.quantity}', '${dateStr}')">補</button>
-                    <button class="action-btn btn-out btn-sm" onclick="openSingleAction('OUT', '${batch.id}', '${batch.quantity}', '${dateStr}')">領</button>
+                    <button class="action-btn btn-in" style="padding:8px 12px;" onclick="openSingleAction('IN', '${batch.id}', '${batch.quantity}', '${dateStr}')">補</button>
+                    <button class="action-btn btn-out" style="padding:8px 12px;" onclick="openSingleAction('OUT', '${batch.id}', '${batch.quantity}', '${dateStr}')">領</button>
                 </div>
             `;
             list.appendChild(li);
         });
-
         document.getElementById('detailModal').style.display = 'flex';
     }
 
-    // 在詳情頁內新增批號
     async function addNewBatch() {
         const date = document.getElementById('newBatchDate').value;
         const qty = parseInt(document.getElementById('newBatchQty').value);
         if (!qty || qty <= 0) return alert("請輸入數量");
-
-        // 取得當前品項的其他資訊 (分類、單位)
         const group = groupedInventory.find(g => g.name === currentDetailItemName);
-        if (!group) return;
-
-        if(!confirm(`確定要新增一批效期為 ${date || '無效期'} 的 ${currentDetailItemName} 嗎？`)) return;
+        
+        if(!confirm(`確認新增效期 ${date||'無'} 的 ${currentDetailItemName}？`)) return;
 
         try {
             const { error } = await supabase.from('inventory').insert([{
-                name: group.name,
-                category: group.category,
-                unit: group.unit,
-                expiry_date: date || null,
-                quantity: qty
+                name: group.name, category: group.category, unit: group.unit, expiry_date: date || null, quantity: qty
             }]);
-
             if (error) throw error;
-            await logAction('新批號入庫', group.name, qty, qty, date, '手動新增批號');
-            
+            await logAction('新批號', group.name, qty, qty, date, '手動新增');
             alert("✅ 新增成功");
-            // 重新讀取並刷新介面
             await loadInventory();
-            openDetailModal(currentDetailItemName); // 重新打開詳情頁
-            document.getElementById('newBatchQty').value = ''; // 清空輸入
-        } catch(e) {
-            alert("失敗：" + e.message);
-        }
+            openDetailModal(currentDetailItemName);
+            document.getElementById('newBatchQty').value = '';
+        } catch(e) { alert(e.message); }
     }
 
-    // ==========================================
-    // 單一操作 (補貨/領用)
-    // ==========================================
     function openSingleAction(type, id, currentQty, dateStr) {
         document.getElementById('actionModal').style.display = 'flex';
         document.getElementById('actId').value = id;
@@ -483,16 +457,8 @@
 
         const title = document.getElementById('actionTitle');
         const btn = document.getElementById('confirmBtn');
-
-        if (type === 'IN') {
-            title.innerText = "➕ 補貨 (增加庫存)";
-            btn.innerText = "確認入庫";
-            btn.className = "action-btn btn-in";
-        } else {
-            title.innerText = "➖ 領用 (扣除庫存)";
-            btn.innerText = "確認領用";
-            btn.className = "action-btn btn-out";
-        }
+        if (type === 'IN') { title.innerText = "➕ 補貨"; btn.className = "action-btn btn-in"; btn.innerText = "確認入庫"; } 
+        else { title.innerText = "➖ 領用"; btn.className = "action-btn btn-out"; btn.innerText = "確認領用"; }
     }
 
     async function submitAction() {
@@ -504,217 +470,117 @@
         const name = document.getElementById('actName').value;
         const date = document.getElementById('actDate').value;
 
-        if (!inputQty || inputQty <= 0) return alert("請輸入有效數量");
-
+        if (!inputQty || inputQty <= 0) return alert("數量錯誤");
         let newQty = currentQty;
         if (type === 'IN') newQty += inputQty;
         else {
-            if (currentQty < inputQty) return alert("庫存不足！");
+            if (currentQty < inputQty) return alert("庫存不足");
             newQty -= inputQty;
         }
 
         try {
-            // 🔥 重點：即使變成 0 也不刪除，僅更新為 0
             const { error } = await supabase.from('inventory').update({ quantity: newQty }).eq('id', id);
             if (error) throw error;
-
             await logAction(type === 'IN' ? '補貨' : '領用', name, inputQty, newQty, date, note);
-            
-            alert("✅ 操作成功");
+            alert("✅ 成功");
             closeModal('actionModal');
-            await loadInventory(); // 重新讀取
-            
-            // 如果是在詳情頁操作的，刷新詳情頁
-            if (document.getElementById('detailModal').style.display !== 'none') {
-                openDetailModal(currentDetailItemName);
-            }
+            await loadInventory();
+            if (document.getElementById('detailModal').style.display !== 'none') openDetailModal(currentDetailItemName);
             loadLogs();
-
-        } catch(e) {
-            alert("操作失敗: " + e.message);
-        }
+        } catch(e) { alert(e.message); }
     }
 
-    // ==========================================
-    // 新增全新商品 (資料庫完全沒有的)
-    // ==========================================
-    function openNewItemModal() {
-        document.getElementById('newItemModal').style.display = 'flex';
-    }
-
+    function openNewItemModal() { document.getElementById('newItemModal').style.display = 'flex'; }
+    
     async function submitNewItem() {
         const name = document.getElementById('newItemName').value.trim();
         const cat = document.getElementById('newCat').value.trim();
         const unit = document.getElementById('newUnit').value.trim();
         const date = document.getElementById('newItemDate').value;
         const qty = parseInt(document.getElementById('newItemQty').value);
-
         if(!name) return alert("品名必填");
 
         try {
             const { error } = await supabase.from('inventory').insert([{
-                name: name,
-                category: cat || '未分類',
-                unit: unit || '罐',
-                expiry_date: date || null,
-                quantity: qty || 0 // 允許初始為 0
+                name: name, category: cat || '未分類', unit: unit || '罐', expiry_date: date || null, quantity: qty || 0
             }]);
-
             if(error) throw error;
-            await logAction('建檔', name, qty, qty, date, '新增品項資料');
-            
-            alert("✅ 新增成功");
+            await logAction('建檔', name, qty, qty, date, '新增品項');
+            alert("✅ 成功");
             closeModal('newItemModal');
             loadInventory();
-        } catch(e) {
-            alert("新增失敗: " + e.message);
-        }
+        } catch(e) { alert(e.message); }
     }
 
     async function logAction(action, name, change, final, expiry, note) {
         await supabase.from('inventory_logs').insert([{
-            product_name: name,
-            action_type: action,
-            change_qty: change,
-            final_qty: final,
-            operator: currentUser,
-            note: `效期:${expiry || '-'} / ${note}`
+            product_name: name, action_type: action, change_qty: change, final_qty: final, operator: currentUser, note: `效期:${expiry||'-'} ${note}`
         }]);
     }
 
-    // ==========================================
-    // 匯入與下載功能
-    // ==========================================
-    async function handleExcelImport(inputElement) {
-        const file = inputElement.files[0];
+    async function handleExcelImport(input) {
+        const file = input.files[0];
         if (!file) return;
-
-        if (!confirm("⚠️ 注意：系統將依據「品名+效期」匯入資料。\n若資料庫無此效期，將自動新增一批號。\n確定要執行嗎？")) {
-            inputElement.value = ''; return;
-        }
-
+        if (!confirm("⚠️ 匯入將自動比對「品名+效期」更新庫存，確定？")) { input.value = ''; return; }
+        
         const reader = new FileReader();
         reader.onload = async function(e) {
             try {
                 const data = new Uint8Array(e.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
-                const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
+                const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 let count = 0;
                 for (let row of jsonData) {
-                    let name = row['品名'];
-                    let qty = row['數量'] || row['庫存數量'];
-                    let expiry = formatExcelDate(row['有效日期']);
-                    let cat = row['分類'];
-                    let unit = row['單位'];
-
-                    if(!name || (qty === undefined)) continue;
-
-                    // 檢查是否存在同品名+同效期
-                    let query = supabase.from('inventory').select('id').eq('name', name);
-                    if(expiry) query = query.eq('expiry_date', expiry);
-                    else query = query.is('expiry_date', null);
-
-                    const { data: existing } = await query;
-
-                    if(existing && existing.length > 0) {
-                        // 更新
-                        await supabase.from('inventory').update({ quantity: qty, category: cat, unit: unit }).eq('id', existing[0].id);
-                    } else {
-                        // 新增
-                        await supabase.from('inventory').insert([{
-                            name: name, quantity: qty, category: cat || '未分類', unit: unit || '罐', expiry_date: expiry
-                        }]);
-                    }
+                    let name = row['品名'], qty = row['數量']||row['庫存'], expiry = formatExcelDate(row['有效日期']), cat = row['分類'], unit = row['單位'];
+                    if(!name || qty==null) continue;
+                    let q = supabase.from('inventory').select('id').eq('name', name);
+                    if(expiry) q = q.eq('expiry_date', expiry); else q = q.is('expiry_date', null);
+                    const { data: ex } = await q;
+                    if(ex && ex.length > 0) await supabase.from('inventory').update({ quantity: qty, category: cat, unit: unit }).eq('id', ex[0].id);
+                    else await supabase.from('inventory').insert([{ name, quantity: qty, category: cat||'未分類', unit: unit||'罐', expiry_date: expiry }]);
                     count++;
                 }
-                alert(`✅ 成功處理 ${count} 筆資料`);
-                inputElement.value = '';
-                loadInventory();
-            } catch (err) {
-                alert("匯入失敗: " + err.message);
-            }
+                alert(`✅ 處理 ${count} 筆`); input.value = ''; loadInventory();
+            } catch (err) { alert("匯入失敗: " + err.message); }
         };
         reader.readAsArrayBuffer(file);
     }
 
-    function formatExcelDate(excelDate) {
-        if (!excelDate) return null;
-        if (typeof excelDate === 'string') return excelDate.trim(); 
-        if (typeof excelDate === 'number') {
-            const date = new Date(Math.round((excelDate - 25569) * 86400 * 1000));
-            return date.toISOString().split('T')[0];
-        }
-        return null;
+    function formatExcelDate(d) {
+        if (!d) return null;
+        if (typeof d === 'string') return d.trim();
+        const date = new Date(Math.round((d - 25569) * 86400 * 1000));
+        return date.toISOString().split('T')[0];
     }
 
     function downloadBlankForm() {
         if(groupedInventory.length === 0) return alert("無資料");
-        // 為了讓盤點表好填，我們把所有現有的「批號」都列出來
-        const exportData = rawInventory.map(item => ({
-            "分類": item.category,
-            "品名": item.name,
-            "庫存數量": "", // 空白
-            "單位": item.unit,
-            "有效日期": item.expiry_date || ""
-        }));
-        
-        // 排序
+        const exportData = rawInventory.map(i => ({ "分類": i.category, "品名": i.name, "庫存": "", "單位": i.unit, "有效日期": i.expiry_date||"" }));
         exportData.sort((a,b) => a['分類'].localeCompare(b['分類']) || a['品名'].localeCompare(b['品名']));
-
         const ws = XLSX.utils.json_to_sheet(exportData);
         ws['!cols'] = [{wch:15}, {wch:25}, {wch:10}, {wch:8}, {wch:15}];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "盤點單");
-        XLSX.writeFile(wb, `空白盤點表_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `空白盤點表.xlsx`);
     }
 
     function exportStock() {
-        // 下載總表：列出所有批號
-        const exportData = rawInventory.map(item => ({
-            "分類": item.category,
-            "品名": item.name,
-            "庫存": item.quantity,
-            "單位": item.unit,
-            "效期": item.expiry_date || "無",
-            "狀態": getStatusText(item.expiry_date)
-        }));
+        const exportData = rawInventory.map(i => ({ "分類": i.category, "品名": i.name, "庫存": i.quantity, "單位": i.unit, "效期": i.expiry_date||"無" }));
         exportData.sort((a,b) => a['分類'].localeCompare(b['分類']) || a['品名'].localeCompare(b['品名']));
-
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "庫存明細");
-        XLSX.writeFile(wb, `庫存總表_${new Date().toISOString().slice(0,10)}.xlsx`);
-    }
-
-    function getStatusText(dateStr) {
-        if(!dateStr) return '正常';
-        const days = (new Date(dateStr) - new Date()) / (1000*60*60*24);
-        if(days < 0) return '已過期';
-        if(days < 30) return '30天內到期';
-        if(days < 90) return '3個月內';
-        return '正常';
+        XLSX.utils.book_append_sheet(wb, ws, "庫存");
+        XLSX.writeFile(wb, `庫存總表.xlsx`);
     }
 
     async function exportLogs() {
         const { data } = await supabase.from('inventory_logs').select('*').order('created_at', {ascending:false}).limit(1000);
         if(!data || data.length === 0) return alert("無紀錄");
-        
-        const exportData = data.map(log => ({
-            "時間": new Date(log.created_at).toLocaleString('zh-TW'),
-            "動作": log.action_type,
-            "品名": log.product_name,
-            "異動": log.change_qty,
-            "結餘": log.final_qty,
-            "備註": log.note,
-            "人員": log.operator
-        }));
-        
+        const exportData = data.map(l => ({ "時間": new Date(l.created_at).toLocaleString(), "動作": l.action_type, "品名": l.product_name, "異動": l.change_qty, "備註": l.note, "人員": l.operator }));
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "紀錄");
-        XLSX.writeFile(wb, `異動紀錄_${new Date().toISOString().slice(0,10)}.xlsx`);
+        XLSX.writeFile(wb, `紀錄.xlsx`);
     }
 
     async function loadLogs() {
@@ -724,8 +590,17 @@
         tbody.innerHTML = '';
         data.forEach(log => {
             const dateStr = new Date(log.created_at).toLocaleString('zh-TW', {month:'numeric', day:'numeric', hour:'numeric', minute:'numeric'});
-            const color = log.action_type.includes('入') || log.action_type.includes('增') || log.action_type.includes('補') ? 'green' : 'red';
-            tbody.innerHTML += `<tr><td>${dateStr}</td><td style="color:${color};font-weight:bold;">${log.action_type}</td><td>${log.product_name}</td><td>${log.change_qty}</td><td>${log.note.split('/')[0]||''}</td><td>${log.operator}</td><td>${log.note.split('/')[1]||''}</td></tr>`;
+            const color = log.action_type.includes('入') || log.action_type.includes('增') || log.action_type.includes('補') ? '#34c759' : '#ff3b30';
+            // 手機版日誌也用 data-label
+            tbody.innerHTML += `<tr>
+                <td data-label="時間">${dateStr}</td>
+                <td data-label="動作" style="color:${color};font-weight:bold;">${log.action_type}</td>
+                <td data-label="品名">${log.product_name}</td>
+                <td data-label="異動">${log.change_qty}</td>
+                <td data-label="效期">${log.note.split('/')[0]||'-'}</td>
+                <td data-label="人員">${log.operator.split('@')[0]}</td>
+                <td data-label="備註" style="font-size:0.9em;color:#666;">${log.note.split('/')[1]||''}</td>
+            </tr>`;
         });
     }
 
