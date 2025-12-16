@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>營養品庫存管理系統 (搜尋領用版)</title>
+    <title>營養品庫存管理系統</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -11,7 +11,7 @@
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 10px; color: #333; }
         .container { max-width: 1100px; margin: 0 auto; padding-bottom: 100px; }
         
-        /* Header & Tabs (維持原樣) */
+        /* Header & Tabs */
         .header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .header-top { display: flex; justify-content: space-between; align-items: center; }
         .back-btn { text-decoration: none; color: #666; font-weight: bold; font-size: 0.9em; display: flex; align-items: center; gap: 5px; }
@@ -41,29 +41,33 @@
         .btn-detail { background: #007aff; color: white; padding: 6px 12px; font-size: 0.85em; border-radius: 6px; }
         .admin-only { display: none; }
 
-        /* 🔥🔥🔥 懸浮按鈕組 (FAB Group) 🔥🔥🔥 */
+        /* 🔥🔥🔥 獨立懸浮按鈕組 🔥🔥🔥 */
         .fab-container {
             position: fixed; bottom: 20px; right: 20px; z-index: 900;
             display: none; /* 有勾選才顯示 */
-            flex-direction: column; gap: 10px; align-items: flex-end;
+            flex-direction: column; gap: 15px; align-items: flex-end;
         }
+        
+        /* 1. 一鍵領用按鈕 (主按鈕 - 藍色) */
         .fab-main {
-            background: #ff3b30; color: white;
+            background: linear-gradient(135deg, #007aff, #005ecb); color: white;
             padding: 15px 25px; border-radius: 50px;
             font-weight: bold; font-size: 1.1em;
-            box-shadow: 0 4px 15px rgba(255, 59, 48, 0.4);
+            box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4);
             cursor: pointer; display: flex; align-items: center; gap: 10px;
             transition: transform 0.2s;
         }
         .fab-main:active { transform: scale(0.95); }
-        
+
+        /* 2. 一鍵取消按鈕 (次按鈕 - 紅色圓形) */
         .fab-clear {
-            background: #666; color: white;
-            width: 40px; height: 40px; border-radius: 50%;
+            background: #ff3b30; color: white;
+            width: 45px; height: 45px; border-radius: 50%;
             display: flex; justify-content: center; align-items: center;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            cursor: pointer; font-size: 1.2em;
+            box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3);
+            cursor: pointer; font-size: 1.2em; transition: transform 0.2s;
         }
+        .fab-clear:active { transform: scale(0.9); }
 
         /* Table Styles */
         table { width: 100%; border-collapse: collapse; }
@@ -86,12 +90,14 @@
             tr:hover { background-color: #f8f9fa; }
         }
 
-        /* Status Badges */
-        .badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; color: white; font-weight: bold; display: inline-block; min-width: 70px; text-align: center; }
-        .bg-gray { background: #6c757d; }
-        .bg-green { background: #28a745; }
-        .bg-yellow { background: #ffc107; color: #333; }
-        .bg-red { background: #dc3545; animation: pulse 1.5s infinite; }
+        /* 🔥🔥🔥 效期顏色樣式 (更新版) 🔥🔥🔥 */
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; color: white; font-weight: bold; display: inline-block; min-width: 80px; text-align: center; }
+        
+        .bg-green { background: #28a745; } /* 大於 2 個月 */
+        .bg-blue { background: #17a2b8; }  /* 2 個月內 */
+        .bg-yellow { background: #ffc107; color: #333; } /* 1 個月內 */
+        .bg-red { background: #dc3545; animation: pulse 1.5s infinite; } /* 15天以下 */
+        
         .bg-cat { background: #8e8e93; font-size: 0.85em; margin-right: 5px; min-width: auto; }
         @keyframes pulse { 0% {opacity:1;} 50% {opacity:0.6;} 100% {opacity:1;} }
 
@@ -111,17 +117,16 @@
         .modal-footer { display: flex; gap: 10px; margin-top: 25px; }
         .modal-footer button { flex: 1; padding: 12px; }
 
-        /* 🔥🔥🔥 搜尋下拉選單樣式 🔥🔥🔥 */
+        /* 搜尋下拉 */
         .search-dropdown {
             position: absolute; top: 100%; left: 0; width: 100%;
             background: white; border: 1px solid #ddd; border-radius: 0 0 8px 8px;
             max-height: 150px; overflow-y: auto; z-index: 10;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: none; /* 預設隱藏 */
+            display: none; 
         }
         .search-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; justify-content: space-between; }
         .search-item:hover { background-color: #f5f7fa; }
-        .search-item:last-child { border-bottom: none; }
 
         /* Checkout List */
         .checkout-list { list-style: none; padding: 0; margin-bottom: 20px; max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; background: #fafafa; }
@@ -199,7 +204,9 @@
 </div>
 
 <div id="fabContainer" class="fab-container">
-    <div class="fab-clear" onclick="clearSelection()" title="一鍵取消勾選">✖</div>
+    <div class="fab-clear" onclick="clearSelection()" title="一鍵取消勾選">
+        <i class="fas fa-trash-alt"></i>
+    </div>
     <div class="fab-main" onclick="openBatchCheckoutModal()">
         <i class="fas fa-shopping-cart"></i> 一鍵領用 (<span id="selectedCount">0</span>)
     </div>
@@ -227,7 +234,7 @@
 
 <div id="batchCheckoutModal" class="modal">
     <div class="modal-content">
-        <h3 style="margin-top:0; color:#ff3b30;">🛒 領用確認</h3>
+        <h3 style="margin-top:0; color:#007aff;">🛒 領用確認</h3>
         
         <div class="form-group" style="border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
             <label>🔍 搜尋並加入品項</label>
@@ -241,11 +248,11 @@
         </div>
 
         <div class="form-group">
-            <label>領用人 / 經手人 <span style="color:red;">*</span></label>
+            <label>領用人<span style="color:red;">*</span></label>
             <input type="text" id="batchRecipient" placeholder="請輸入姓名">
         </div>
         <div class="form-group">
-            <label>病歷號 / 用途 <span style="color:red;">*</span></label>
+            <label>病歷號/用途 <span style="color:red;">*</span></label>
             <input type="text" id="batchNote" placeholder="例如: 123456 (王小明)">
         </div>
         <div class="modal-footer">
@@ -281,7 +288,7 @@
     let currentUser = '';
     let isAdmin = false;
     let currentDetailItemName = '';
-    let selectedItems = new Set(); // 存放勾選的品名
+    let selectedItems = new Set();
 
     (async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -375,17 +382,24 @@
             const nearestBatch = validBatches.length > 0 ? validBatches[0] : null;
             
             let dateDisplay = '無效期';
-            let statusBadge = '<span class="badge bg-gray">效期充足</span>';
+            let statusBadge = '<span class="badge bg-gray">大於2個月</span>'; // 預設改為大於2個月
             
             if (nearestBatch) {
                 dateDisplay = nearestBatch.expiry_date;
                 const diffDays = Math.ceil((new Date(nearestBatch.expiry_date) - today) / (1000 * 60 * 60 * 24)); 
                 
-                if (diffDays < 0) statusBadge = '<span class="badge bg-red">已過期</span>';
-                else if (diffDays <= 15) statusBadge = `<span class="badge bg-red">倒數 ${diffDays} 天</span>`;
-                else if (diffDays <= 30) statusBadge = '<span class="badge bg-yellow">1個月內</span>';
-                else if (diffDays <= 60) statusBadge = '<span class="badge bg-green">2個月內</span>';
-                else statusBadge = '<span class="badge bg-gray">效期充足</span>';
+                // 🔥🔥 效期顏色邏輯 (依需求修正) 🔥🔥
+                if (diffDays < 0) {
+                    statusBadge = '<span class="badge bg-red">已過期</span>';
+                } else if (diffDays <= 15) {
+                    statusBadge = `<span class="badge bg-red">倒數 ${diffDays} 天</span>`;
+                } else if (diffDays <= 30) {
+                    statusBadge = '<span class="badge bg-yellow">1個月內</span>';
+                } else if (diffDays <= 60) {
+                    statusBadge = '<span class="badge bg-blue">2個月內</span>';
+                } else {
+                    statusBadge = '<span class="badge bg-green">大於2個月</span>';
+                }
             }
 
             const tr = document.createElement('tr');
@@ -407,15 +421,11 @@
         updateFab();
     }
 
-    // ===========================================
-    // 購物車 & 領用邏輯 (含搜尋)
-    // ===========================================
     function toggleSelection(name, checkbox) {
         if (checkbox.checked) selectedItems.add(name); else selectedItems.delete(name);
         updateFab();
     }
     
-    // 🔥 一鍵取消勾選
     function clearSelection() {
         selectedItems.clear();
         document.querySelectorAll('.item-check').forEach(cb => cb.checked = false);
@@ -441,7 +451,6 @@
         document.getElementById('batchCheckoutModal').style.display = 'flex';
     }
 
-    // 渲染領用清單
     function renderCheckoutList() {
         const list = document.getElementById('checkoutList');
         list.innerHTML = '';
@@ -464,18 +473,14 @@
         });
     }
 
-    // 從購物車移除
     function removeFromCart(name) {
         selectedItems.delete(name);
-        // 同步更新背後的 Checkbox
         const checkbox = document.querySelector(`.item-check[value="${name}"]`);
         if(checkbox) checkbox.checked = false;
-        
         renderCheckoutList();
         updateFab();
     }
 
-    // 🔥 彈窗內搜尋邏輯
     function searchItemToAdd() {
         const text = document.getElementById('itemSearchInput').value.toLowerCase();
         const resultsDiv = document.getElementById('searchResults');
@@ -493,11 +498,9 @@
                 div.onclick = () => {
                     selectedItems.add(g.name);
                     renderCheckoutList();
-                    // 同步勾選背後列表
                     const checkbox = document.querySelector(`.item-check[value="${g.name}"]`);
                     if(checkbox) checkbox.checked = true;
                     updateFab();
-                    
                     document.getElementById('itemSearchInput').value = '';
                     resultsDiv.style.display = 'none';
                 };
@@ -550,14 +553,13 @@
                 await logAction('領用', t.name, t.change, t.newQty, t.expiry, `領:${recipient} 用:${note}`);
             }
             alert("✅ 領用成功");
-            clearSelection(); // 清空購物車
+            clearSelection();
             closeModal('batchCheckoutModal');
             loadInventory();
             loadLogs();
         } catch(e) { alert("失敗：" + e.message); }
     }
 
-    // ... 其他既有功能維持不變 ...
     function openDetailModal(itemName) {
         const group = groupedInventory.find(g => g.name === itemName);
         if (!group) return;
