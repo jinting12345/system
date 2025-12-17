@@ -75,16 +75,13 @@
         }
         @media (min-width: 769px) { .mobile-wrapper { display: none; } }
 
-        /* Drag Handle */
         .drag-handle { cursor: grab; color: #aaa; padding: 5px; display: none; }
         .is-editing .drag-handle { display: inline-block; }
 
-        /* FAB */
         .fab-container { position: fixed; bottom: 20px; right: 20px; z-index: 900; display: none; flex-direction: column; gap: 15px; align-items: flex-end; }
         .fab-main { background: linear-gradient(135deg, #007aff, #005ecb); color: white; padding: 12px 20px; border-radius: 50px; font-weight: bold; font-size: 1em; box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4); cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .fab-clear { background: #ff3b30; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3); cursor: pointer; font-size: 1.1em; }
 
-        /* Modals */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end; z-index: 1000; }
         .modal-content { background: white; width: 100%; max-width: 500px; padding: 20px; border-radius: 15px 15px 0 0; max-height: 85vh; overflow-y: auto; display: flex; flex-direction: column; }
         @media (min-width: 769px) { .modal { align-items: center; } .modal-content { border-radius: 12px; width: 90%; } }
@@ -594,40 +591,84 @@
         reader.readAsArrayBuffer(file);
     }
 
+    // 🔥 盤點表 (Check Sheet) 也要套用 1-5 欄位邏輯
     function downloadBlankForm() {
         if(groupedInventory.length === 0) return alert("無資料");
-        // 盤點表也不要重複
-        const exportData = groupedInventory.map(group => ({ 
-            "分類": group.category, "品名": group.name, "系統庫存": group.totalQty, "盤點數量": "", "單位": group.unit 
-        }));
+        
+        const exportData = groupedInventory.map(group => {
+            let row = {
+                "排序": group.sortOrder,
+                "分類": group.category,
+                "品名": group.name,
+                "單位": group.unit,
+                "系統總數": group.totalQty,
+                "盤點填寫區": "" // 給人手寫的空白格
+            };
+
+            const validBatches = group.batches
+                .filter(b => b.quantity > 0)
+                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
+
+            // 固定 1 到 5
+            for (let i = 0; i < 5; i++) {
+                const num = i + 1;
+                const batch = validBatches[i];
+                row[`庫存${num}`] = batch ? batch.quantity : ""; 
+                row[`效期${num}`] = batch ? (batch.expiry_date || '無效期') : "";
+            }
+            // 超過 5 筆繼續加
+            for (let i = 5; i < validBatches.length; i++) {
+                 const num = i + 1;
+                 const batch = validBatches[i];
+                 row[`庫存${num}`] = batch.quantity;
+                 row[`效期${num}`] = batch.expiry_date || '無效期';
+            }
+            return row;
+        });
+
         const ws = XLSX.utils.json_to_sheet(exportData);
-        ws['!cols'] = [{wch:15}, {wch:25}, {wch:10}, {wch:10}, {wch:8}];
-        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "盤點單");
-        XLSX.writeFile(wb, `空白盤點表_${new Date().toISOString().split('T')[0]}.xlsx`);
+        // 設定欄寬 (讓列印比較好看)
+        ws['!cols'] = [
+            {wch:5}, {wch:10}, {wch:20}, {wch:5}, {wch:8}, {wch:15}, // 基本欄位 + 填寫區
+            {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12} // 1-5 的庫存效期
+        ];
+        const wb = XLSX.utils.book_new(); 
+        XLSX.utils.book_append_sheet(wb, ws, "盤點單");
+        XLSX.writeFile(wb, `盤點表_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
     function exportStock() {
         if(groupedInventory.length === 0) return alert("無資料");
-        // 🔥 報表優化：合併同一品項，並將效期明細列在同一欄
         const exportData = groupedInventory.map(group => {
-            const batchDetails = group.batches
-                .filter(b => b.quantity > 0)
-                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'))
-                .map(b => `${b.expiry_date||'無效期'}: ${b.quantity}`)
-                .join(',\n'); // Excel 換行
-
-            return {
+            let row = {
                 "排序": group.sortOrder,
                 "分類": group.category,
                 "品名": group.name,
                 "總庫存": group.totalQty,
-                "單位": group.unit,
-                "效期明細": batchDetails
+                "單位": group.unit
             };
+
+            const validBatches = group.batches
+                .filter(b => b.quantity > 0)
+                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
+
+            for (let i = 0; i < 5; i++) {
+                const num = i + 1;
+                const batch = validBatches[i];
+                row[`庫存${num}`] = batch ? batch.quantity : ""; 
+                row[`效期${num}`] = batch ? (batch.expiry_date || '無效期') : "";
+            }
+            for (let i = 5; i < validBatches.length; i++) {
+                 const num = i + 1;
+                 const batch = validBatches[i];
+                 row[`庫存${num}`] = batch.quantity;
+                 row[`效期${num}`] = batch.expiry_date || '無效期';
+            }
+
+            return row;
         });
 
         const ws = XLSX.utils.json_to_sheet(exportData);
-        ws['!cols'] = [{wch:5}, {wch:10}, {wch:20}, {wch:10}, {wch:5}, {wch:30}];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "庫存總表");
         XLSX.writeFile(wb, `庫存總表_${new Date().toISOString().split('T')[0]}.xlsx`);
