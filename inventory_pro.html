@@ -58,11 +58,11 @@
         .checkbox-cell { width: 30px; text-align: center; }
         .checkbox-cell input { width: 20px; height: 20px; }
 
-        /* 🔥 Badge Status (修正為 13px) */
+        /* 🔥 Badge Status (修正為 12px, 縮小內距) */
         .badge { 
-            padding: 5px 8px; 
+            padding: 2px 8px;  /* ✅ 改小內距 */
             border-radius: 4px; 
-            font-size: 13px; /* ✅ 已修正 */
+            font-size: 12px;   /* ✅ 修正為 12px */
             color: white; 
             font-weight: bold; 
             display: inline-block; 
@@ -79,15 +79,15 @@
         .is-editing .edit-input { border: 1px solid #007aff; background: #fff; padding: 5px; border-radius: 4px; }
         .edit-input:disabled { opacity: 1; -webkit-text-fill-color: #333; }
         
-        /* 🔥 分類編輯框 (修正為 13px) */
+        /* 🔥 分類編輯框 (修正為 12px 且變窄) */
         .cat-input { 
-            font-size: 13px; /* ✅ 已修正 */
+            font-size: 12px;     /* ✅ 修正為 12px */
             text-align: center; 
             color: #fff; 
             background: #8e8e93; 
-            width: 90px; 
+            width: 60px;         /* ✅ 寬度改窄 (原本90px) */
             border-radius: 4px; 
-            padding: 5px;
+            padding: 2px 0;      /* ✅ 內距改小 (原本5px) */
         }
         .is-editing .cat-input { color: #333; background: #fff; }
 
