@@ -145,13 +145,16 @@
                 <tr>
                     <th width="50"><input type="checkbox" id="check-all" onchange="toggleAll(this)"></th>
                     <th width="120">日期</th>
-                    <th width="150">值班人員(可修改)</th> <th colspan="2">早餐</th> <th colspan="2">午餐</th> <th colspan="2">晚餐</th>
+                    <th width="150">值班人員(可修改)</th> 
+                    <th colspan="2">早餐</th> 
+                    <th colspan="1">午餐</th> 
+                    <th colspan="1">晚餐</th>
                 </tr>
                 <tr>
                     <th></th><th></th><th></th>
                     <th style="font-size:0.8em;color:#666;">病患</th><th style="font-size:0.8em;color:#666;">護家</th>
-                    <th style="font-size:0.8em;color:#666;">病患</th><th style="font-size:0.8em;color:#666;">護家</th>
-                    <th style="font-size:0.8em;color:#666;">病患</th><th style="font-size:0.8em;color:#666;">護家</th>
+                    <th style="font-size:0.8em;color:#666;">病患</th>
+                    <th style="font-size:0.8em;color:#666;">病患</th>
                 </tr>
             </thead>
             <tbody id="record-body"></tbody>
@@ -181,7 +184,7 @@
         if(!data.session) { alert("請先登入"); window.location.href = 'index.html'; } 
         else { 
             fetchData(); 
-            updateGlobalStats(); // 🔥 登入後先抓一次全域統計
+            updateGlobalStats(); 
         }
     }
 
@@ -202,7 +205,6 @@
 
         currentRecords = recordData; 
         renderTable(year, month, scheduleData, recordData);
-        // 注意：這裡不再呼叫 updateStats，改用 updateGlobalStats 獨立運作
         showLoading(false);
     }
 
@@ -235,22 +237,26 @@
                 }
             };
 
+            // 🔥 修改處：隱藏了「護家」的午餐與晚餐欄位
             const row = `
                 <tr class="${isWeekend ? 'weekend' : ''}">
                     <td><input type="checkbox" class="date-checkbox" value="${dateStr}"></td>
-                    <td class="date-cell">${displayDate}</td> <td>${displayStaffInput}</td> <td>${checkStatus('breakfast', 'patient')}</td><td>${checkStatus('breakfast', 'nursing')}</td>
-                    <td>${checkStatus('lunch', 'patient')}</td><td>${checkStatus('lunch', 'nursing')}</td>
-                    <td>${checkStatus('dinner', 'patient')}</td><td>${checkStatus('dinner', 'nursing')}</td>
+                    <td class="date-cell">${displayDate}</td> <td>${displayStaffInput}</td> 
+                    
+                    <td>${checkStatus('breakfast', 'patient')}</td><td>${checkStatus('breakfast', 'nursing')}</td>
+                    
+                    <td>${checkStatus('lunch', 'patient')}</td>
+                    
+                    <td>${checkStatus('dinner', 'patient')}</td>
                 </tr>`;
             tbody.innerHTML += row;
         }
     }
 
     // ==========================================
-    // 🔥 全新功能：計算全域統計 (不受月份切換影響)
+    // 全域統計功能
     // ==========================================
     async function updateGlobalStats() {
-        // 使用 Supabase 的 count 功能，只算數量不抓資料，速度快
         const { count, error } = await supabase
             .from('meal_records')
             .select('*', { count: 'exact', head: true });
@@ -262,13 +268,12 @@
         }
 
         const totalCount = count || 0;
-        const usedSpace = (totalCount * 0.5); // 假設每張 0.5 MB
-        const totalSpace = 500; // 🔥 修改：設定上限為 500 MB
+        const usedSpace = (totalCount * 0.5); 
+        const totalSpace = 500; 
         
         document.getElementById('total-photos').innerText = totalCount + " 張"; 
         document.getElementById('storage-usage').innerText = `${usedSpace.toFixed(1)} MB / ${totalSpace} MB`; 
         
-        // 計算剩餘天數 (預估每日 3MB)
         const dailyUsage = 3; 
         const remainingSpace = totalSpace - usedSpace;
         const daysLeft = Math.floor(remainingSpace / dailyUsage);
@@ -360,7 +365,13 @@
         if (!user) { alert("請先登入"); return; }
 
         if(!confirm(`⚠️ 危險操作警告 ⚠️\n\n您即將「永久刪除」選取日期的所有照片與紀錄。\n刪除後無法復原！\n\n您確定要繼續嗎？`)) return;
-        if(!confirm(`再次確認：\n\n如果您還沒備份，請按「取消」先去下載。\n\n真的要刪除嗎？`)) return;
+        
+        const confirmInput = prompt(`🔴 最後防護機制 🔴\n\n為了防止誤刪，請在下方對話框輸入 "刪除" 兩個字來確認：\n\n(若輸入錯誤將自動取消)`);
+        
+        if (confirmInput !== "刪除") {
+            alert("❌ 輸入不正確或已取消，刪除操作已中止。");
+            return;
+        }
 
         showLoading(true, "正在刪除資料...");
         const selectedDates = Array.from(checkboxes).map(cb => cb.value);
@@ -385,7 +396,7 @@
 
             alert("✅ 刪除成功！選取的紀錄已移除。");
             fetchData(); 
-            updateGlobalStats(); // 🔥 刪除後更新全域統計
+            updateGlobalStats(); 
         } catch (err) { 
             console.error(err); 
             alert("刪除發生錯誤：" + err.message); 
