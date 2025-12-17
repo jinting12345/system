@@ -8,31 +8,25 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
     <style>
-        /* 基礎設定 */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 5px; color: #333; -webkit-tap-highlight-color: transparent; }
         .container { max-width: 1100px; margin: 0 auto; padding-bottom: 120px; }
         
-        /* 頁首 Header */
         .header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .header-top { display: flex; justify-content: space-between; align-items: center; }
         .back-btn { text-decoration: none; color: #666; font-weight: bold; font-size: 0.9em; display: flex; align-items: center; gap: 5px; }
         h2 { margin: 0; color: #2c3e50; font-size: 1.2em; }
         
-        /* 分頁標籤 Tabs */
         .tabs { display: flex; gap: 5px; margin-bottom: 10px; background: #e4e6eb; padding: 3px; border-radius: 8px; }
         .tab-btn { flex: 1; padding: 8px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-weight: bold; color: #65676b; transition: 0.2s; font-size: 0.95em; }
         .tab-btn.active { background: white; color: #1a73e8; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
 
-        /* 控制列 Controls */
         .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .search-input { flex: 2; min-width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
         .category-select { flex: 1; min-width: 90px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
 
-        /* 按鈕群組 */
         .btn-group { display: flex; gap: 5px; flex-wrap: wrap; width: 100%; margin-top: 5px; }
         .action-btn { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.85em; }
         .btn-in { background: #34c759; } 
@@ -44,7 +38,6 @@
         .btn-lock.editing { background: #dc3545; }
         .admin-only { display: none; }
 
-        /* 電腦版表格樣式 */
         table { width: 100%; border-collapse: separate; border-spacing: 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
         th { background: #f8f9fa; color: #555; font-weight: bold; white-space: nowrap; font-size: 0.9em; }
@@ -52,7 +45,6 @@
         .checkbox-cell { width: 30px; text-align: center; }
         .checkbox-cell input { width: 20px; height: 20px; }
 
-        /* 狀態標籤 Badge */
         .badge { padding: 2px 6px; border-radius: 4px; font-size: 11px; color: white; font-weight: bold; display: inline-block; text-align: center; }
         .bg-green { background: #28a745; }
         .bg-blue { background: #17a2b8; } 
@@ -60,39 +52,29 @@
         .bg-red { background: #dc3545; }
         .bg-cat { background: #8e8e93; color: white; margin-right: 4px; }
 
-        /* 🔥 手機版：緊湊清單模式 (Mobile Compact List) 🔥 */
         @media (max-width: 768px) {
             thead { display: none; }
             tr { display: flex; flex-wrap: nowrap; align-items: center; padding: 8px 5px; border-bottom: 1px solid #eee; background: white; }
             td { border: none; padding: 0; display: block; }
-            
-            /* 手機版各區塊寬度配置 */
             .checkbox-cell { width: 30px; display: flex !important; justify-content: center; }
             .sort-cell { width: 30px; font-weight: bold; color: #888; font-size: 1.1em; text-align: center; display: block !important; }
             .main-content-cell { flex: 1; padding-left: 5px; padding-right: 5px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
-            
-            /* 內容排版 */
             .row-top { display: flex; align-items: center; margin-bottom: 2px; }
             .row-bottom { display: flex; align-items: center; font-size: 0.85em; color: #666; gap: 8px; }
             .name-text { font-weight: bold; font-size: 15px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            
-            /* 操作與隱藏 */
             .action-cell { width: auto; text-align: right; }
             .btn-detail { padding: 6px 10px; font-size: 13px; }
             .desktop-only-cell { display: none !important; }
         }
         @media (min-width: 769px) { .mobile-wrapper { display: none; } }
 
-        /* 拖曳把手 */
         .drag-handle { cursor: grab; color: #aaa; padding: 5px; display: none; }
         .is-editing .drag-handle { display: inline-block; }
 
-        /* 懸浮按鈕 FAB */
         .fab-container { position: fixed; bottom: 20px; right: 20px; z-index: 900; display: none; flex-direction: column; gap: 15px; align-items: flex-end; }
         .fab-main { background: linear-gradient(135deg, #007aff, #005ecb); color: white; padding: 12px 20px; border-radius: 50px; font-weight: bold; font-size: 1em; box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4); cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .fab-clear { background: #ff3b30; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3); cursor: pointer; font-size: 1.1em; }
 
-        /* Modal 彈窗樣式 */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end; z-index: 1000; }
         .modal-content { background: white; width: 100%; max-width: 500px; padding: 20px; border-radius: 15px 15px 0 0; max-height: 85vh; overflow-y: auto; display: flex; flex-direction: column; }
         @media (min-width: 769px) { .modal { align-items: center; } .modal-content { border-radius: 12px; width: 90%; } }
@@ -103,10 +85,8 @@
         .checkout-item-bottom { display: flex; gap: 5px; align-items: center; }
         .batch-select { flex: 2; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; background: white; }
         .batch-qty-input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: center; font-size: 14px; }
-        
         .search-dropdown { position: absolute; top: 100%; left: 0; width: 100%; background: white; border: 1px solid #ddd; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; }
         .search-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 15px; }
-        
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
@@ -232,13 +212,11 @@
 </div>
 
 <script>
-    // 字串清理與 Supabase 初始化
     function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
     const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
 
-    // 全域變數
     let rawInventory = [];
     let groupedInventory = [];
     let currentUser = '';
@@ -248,7 +226,6 @@
     let isEditMode = false;
     let sortableInstance = null;
 
-    // 初始化
     (async () => {
         const { data: { session } } = await supabase.auth.getSession();
         if(!session) window.location.href = 'index.html';
@@ -262,7 +239,6 @@
         document.getElementById('newItemDate').value = today;
     })();
 
-    // 檢查權限
     async function checkUserRole() {
         const { data } = await supabase.from('user_roles').select('role').eq('email', currentUser).single();
         isAdmin = (data && data.role === 'admin');
@@ -274,7 +250,6 @@
         }
     }
 
-    // 切換分頁
     function switchTab(tabName) {
         document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
@@ -282,7 +257,6 @@
         event.target.classList.add('active');
     }
 
-    // 編輯模式 (拖曳排序)
     function toggleEditMode() {
         isEditMode = !isEditMode;
         const btn = document.getElementById('editToggleBtn');
@@ -323,7 +297,6 @@
         }
     }
 
-    // 讀取庫存資料
     async function loadInventory() {
         const tbody = document.getElementById('stockBody');
         tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">載入中...</td></tr>';
@@ -335,7 +308,6 @@
         renderTable();
     }
 
-    // 資料分組 (同品名合併)
     function groupData(data) {
         const groups = {};
         data.forEach(item => {
@@ -361,7 +333,6 @@
         select.value = currentVal;
     }
 
-    // 渲染表格 (支援手機緊湊版)
     function renderTable() {
         const tbody = document.getElementById('stockBody');
         const searchText = document.getElementById('searchInput').value.toLowerCase();
@@ -399,12 +370,10 @@
             tr.innerHTML = `
                 <td class="checkbox-cell"><input type="checkbox" class="item-check" value="${group.name}" ${isChecked} onchange="toggleSelection('${group.name}', this)"></td>
                 <td class="sort-cell"><i class="fas fa-bars drag-handle"></i><span>${group.sortOrder}</span></td>
-                
                 <td class="desktop-only-cell"><span class="badge bg-cat">${group.category}</span></td>
                 <td class="desktop-only-cell" style="font-weight:bold;">${group.name}</td>
                 <td class="desktop-only-cell qty-cell">${group.totalQty}</td>
                 <td class="desktop-only-cell"><span class="badge ${statusClass}">${statusText}</span></td>
-                
                 <td class="main-content-cell mobile-wrapper">
                     <div class="row-top">
                         <span class="badge bg-cat" style="font-size:10px; padding:2px 4px;">${group.category}</span>
@@ -415,7 +384,6 @@
                          <span class="badge ${statusClass}" style="transform:scale(0.9);">${statusText}</span>
                     </div>
                 </td>
-                
                 <td class="action-cell">
                     <button class="action-btn btn-detail" onclick="openDetailModal('${group.name}')">詳情</button>
                 </td>
@@ -440,7 +408,6 @@
         document.getElementById('selectedCount').innerText = selectedItems.size;
     }
 
-    // 領用選單邏輯
     function openBatchCheckoutModal() {
         renderCheckoutList();
         document.getElementById('itemSearchInput').value = '';
@@ -537,7 +504,6 @@
             for (let t of transactions) {
                 const { error } = await supabase.from('inventory').update({ quantity: t.newQty }).eq('id', t.id);
                 if(error) throw error;
-                // 領用記錄寫入：領用人
                 await logAction('領用', t.name, t.deduct, t.newQty, t.expiryDisplay.split(' ')[0], `用途:${note}`, recipient);
             }
             alert("✅ 領用成功"); clearSelection(); closeModal('batchCheckoutModal'); loadInventory();
@@ -568,13 +534,11 @@
         if(!confirm("確定入庫？")) return;
         try {
             await supabase.from('inventory').insert([{ name: group.name, category: group.category, unit: group.unit, expiry_date: date||null, quantity: qty, sort_order: group.sortOrder }]);
-            // 入庫記錄寫入：管理員
             await logAction('入庫', group.name, qty, qty, date, '手動入庫', '管理員');
             alert("成功"); loadInventory(); closeModal('detailModal');
         } catch(e) { alert(e.message); }
     }
 
-    // 紀錄操作 (可指定操作人員名稱)
     async function logAction(action, name, change, final, expiry, note, operatorName) {
         const op = operatorName || '管理員';
         await supabase.from('inventory_logs').insert([{ 
@@ -596,12 +560,10 @@
         }
     }
 
-    // 🔥 強化版 Excel 匯入 (支援各種日期格式)
     function handleExcelImport(input) {
         const file = input.files[0];
         if(!file) return;
         if(!confirm("確定匯入？將自動比對品名+效期\n(請確認 Excel 日期格式為 西元 YYYY-MM-DD 或 Excel 內建日期格式)")) return;
-        
         const reader = new FileReader();
         reader.onload = async function(e) {
             try {
@@ -609,37 +571,23 @@
                 const workbook = XLSX.read(data, {type: 'array'});
                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 let count = 0;
-                
                 for(let row of json) {
                     let name = row['品名'];
                     let qty = row['數量'] || row['庫存'];
                     if(!name || qty == null) continue;
-                    
-                    // 日期格式處理
                     let date = row['有效日期'];
                     let finalDate = null;
-
                     if (date) {
                         if (typeof date === 'number') {
-                            // Excel 數字日期格式
                             finalDate = new Date(Math.round((date - 25569) * 86400 * 1000)).toISOString().split('T')[0];
                         } else if (typeof date === 'string') {
-                            // 文字格式
                             const cleanDate = date.trim().replace(/\//g, '-');
                             if (!isNaN(Date.parse(cleanDate))) {
                                 finalDate = new Date(cleanDate).toISOString().split('T')[0];
                             }
                         }
                     }
-
-                    await supabase.from('inventory').insert([{ 
-                        name: name, 
-                        category: row['分類']||'未分類', 
-                        unit: row['單位']||'罐', 
-                        quantity: qty, 
-                        expiry_date: finalDate, 
-                        sort_order: 9999 
-                    }]);
+                    await supabase.from('inventory').insert([{ name: name, category: row['分類']||'未分類', unit: row['單位']||'罐', quantity: qty, expiry_date: finalDate, sort_order: 9999 }]);
                     count++;
                 }
                 alert(`✅ 成功匯入 ${count} 筆資料`); 
@@ -647,13 +595,12 @@
                 loadInventory();
             } catch(e) { 
                 alert("❌ 匯入失敗: " + e.message); 
-                console.error(e);
             }
         };
         reader.readAsArrayBuffer(file);
     }
 
-    // 🔥 盤點單下載 (橫向展開 1~5)
+    // 🔥 盤點單 (含自動公式)
     function downloadBlankForm() {
         if(groupedInventory.length === 0) return alert("無資料");
         
@@ -664,21 +611,17 @@
                 "品名": group.name,
                 "單位": group.unit,
                 "系統總數": group.totalQty,
-                "盤點填寫區": "" 
+                "盤點後總數量": "" // 預留給公式
             };
 
-            const validBatches = group.batches
-                .filter(b => b.quantity > 0)
-                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
+            const validBatches = group.batches.filter(b => b.quantity > 0).sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
 
-            // 固定欄位 1~5
             for (let i = 0; i < 5; i++) {
                 const num = i + 1;
                 const batch = validBatches[i];
                 row[`庫存${num}`] = batch ? batch.quantity : ""; 
                 row[`效期${num}`] = batch ? (batch.expiry_date || '無效期') : "";
             }
-            // 超過 5 筆繼續加
             for (let i = 5; i < validBatches.length; i++) {
                  const num = i + 1;
                  const batch = validBatches[i];
@@ -689,6 +632,17 @@
         });
 
         const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        // 🔥 注入 SUM 公式：F欄 = SUM(G欄, I欄, K欄, M欄, O欄)
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = 1; R <= range.e.r; ++R) {
+            const cell_ref = XLSX.utils.encode_cell({c: 5, r: R}); // F欄 (Index 5)
+            const rowNum = R + 1;
+            const formula = `SUM(G${rowNum},I${rowNum},K${rowNum},M${rowNum},O${rowNum})`;
+            if(!ws[cell_ref]) ws[cell_ref] = { t: 'n', v: 0 };
+            ws[cell_ref].f = formula;
+        }
+
         ws['!cols'] = [
             {wch:5}, {wch:10}, {wch:20}, {wch:5}, {wch:8}, {wch:15}, 
             {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12}
@@ -698,7 +652,6 @@
         XLSX.writeFile(wb, `盤點表_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
-    // 🔥 庫存報表下載 (橫向展開 1~5)
     function exportStock() {
         if(groupedInventory.length === 0) return alert("無資料");
         const exportData = groupedInventory.map(group => {
@@ -709,11 +662,7 @@
                 "總庫存": group.totalQty,
                 "單位": group.unit
             };
-
-            const validBatches = group.batches
-                .filter(b => b.quantity > 0)
-                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
-
+            const validBatches = group.batches.filter(b => b.quantity > 0).sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
             for (let i = 0; i < 5; i++) {
                 const num = i + 1;
                 const batch = validBatches[i];
@@ -728,11 +677,22 @@
             }
             return row;
         });
-
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "庫存總表");
         XLSX.writeFile(wb, `庫存總表_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    async function exportLogs() {
+        const { data } = await supabase.from('inventory_logs').select('*').order('created_at', {ascending:false}).limit(1000);
+        if(!data || data.length === 0) return alert("無紀錄");
+        const exportData = data.map(l => ({ 
+            "時間": new Date(l.created_at).toLocaleString(), "動作": l.action_type, 
+            "品名": l.product_name, "異動": l.change_qty, "備註": l.note, "人員": l.operator 
+        }));
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "紀錄");
+        XLSX.writeFile(wb, `庫存紀錄_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
     function openNewItemModal() { document.getElementById('newItemModal').style.display = 'flex'; }
@@ -741,7 +701,6 @@
         const qty = document.getElementById('newItemQty').value;
         if(!name) return;
         await supabase.from('inventory').insert([{ name: name, category: document.getElementById('newCat').value, unit: document.getElementById('newUnit').value, expiry_date: document.getElementById('newItemDate').value || null, quantity: qty, sort_order: 9999 }]);
-        // 建檔記錄寫入：管理員
         await logAction('建檔', name, qty, qty, document.getElementById('newItemDate').value || null, '新增品項', '管理員');
         alert("已新增"); closeModal('newItemModal'); loadInventory();
     }
