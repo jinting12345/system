@@ -33,7 +33,7 @@
         .category-select { flex: 1; min-width: 90px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
 
         /* 按鈕群組 */
-        .btn-group { display: flex; gap: 5px; flex-wrap: wrap; width: 100%; margin-top: 5px; }
+        .btn-group { display: flex; gap: 5px; flex-wrap: wrap; width: 100%; margin-top: 5px; align-items: center; }
         .action-btn { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.85em; transition: 0.2s; }
         
         .btn-in { background: #34c759; } 
@@ -41,15 +41,13 @@
         .btn-import { background: #007aff; } 
         .btn-export { background: #5856d6; } 
         .btn-stocktake { background: #ff9500; } 
-        .btn-detail { background: #4cd964; color: white; } 
+        .btn-detail { background: #4cd964; color: white; } /* 淡綠色 */
         
-        /* 🔥 即期品按鈕樣式 */
+        /* 🔥 即期報表按鈕 (黃色) */
         .btn-warning { background: #ffcc00; color: #333; }
-        .btn-warning.active { background: #ff9500; color: white; box-shadow: inset 0 2px 5px rgba(0,0,0,0.2); }
-
-        /* 🔥 刪除按鈕樣式 (僅在編輯模式出現) */
-        .btn-delete-item { background: #ff3b30; color: white; padding: 6px 10px; margin-left: 5px; border-radius: 6px; font-size: 12px; cursor: pointer; display: none; }
-        .is-editing .btn-delete-item { display: inline-block; }
+        
+        /* 🔥 刪除按鈕 (紅色) - 預設隱藏 */
+        .btn-delete { background: #ff3b30; color: white; display: none; } 
 
         .btn-lock { background: #6c757d; color: white; }
         .btn-lock.editing { background: #dc3545; }
@@ -86,7 +84,7 @@
             .main-content-cell { flex: 1; padding-left: 5px; padding-right: 5px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
             .row-top { display: flex; align-items: center; margin-bottom: 2px; gap: 5px; }
             .row-bottom { display: flex; align-items: center; font-size: 0.85em; color: #666; gap: 8px; }
-            .action-cell { width: auto; text-align: right; display: flex; align-items: center; justify-content: flex-end; }
+            .action-cell { width: auto; text-align: right; }
             .btn-detail { padding: 6px 10px; font-size: 13px; }
             .desktop-only-cell { display: none !important; }
         }
@@ -142,8 +140,6 @@
             </select>
             <input type="text" id="searchInput" class="search-input" placeholder="搜尋品名..." onkeyup="renderTable()">
             
-            <button id="btnExpiring" class="action-btn btn-warning" onclick="toggleExpiringFilter()">⚠️ 即期品</button>
-
             <div class="btn-group">
                 <button id="editToggleBtn" class="action-btn btn-lock admin-only" onclick="toggleEditMode()">🔒 編輯</button>
                 <input type="file" id="excel_input" accept=".xlsx, .xls" style="display: none;" onchange="handleExcelImport(this)">
@@ -151,6 +147,9 @@
                 <button class="action-btn btn-in admin-only" style="background:#007bff;" onclick="openNewItemModal()">➕ 新增</button>
                 <button class="action-btn btn-stocktake" onclick="downloadBlankForm()">📄 盤點</button>
                 <button class="action-btn btn-export" onclick="exportStock()">📥 報表</button>
+                
+                <button class="action-btn btn-warning" onclick="exportExpiringReport()">⚠️ 即期報表</button>
+                <button id="btnDelete" class="action-btn btn-delete" onclick="deleteSelectedItems()">🗑️ 刪除選取</button>
             </div>
         </div>
         
@@ -163,7 +162,7 @@
                     <th width="">品名</th>
                     <th width="60">庫存</th>
                     <th width="90">效期</th>
-                    <th width="80">操作</th>
+                    <th width="60">操作</th>
                 </tr>
             </thead>
             <tbody id="stockBody"></tbody>
@@ -254,7 +253,6 @@
     let selectedItems = new Set();
     let isEditMode = false;
     let sortableInstance = null;
-    let showExpiringOnly = false; // 🔥 即期品過濾狀態
 
     (async () => {
         const { data: { session } } = await supabase.auth.getSession();
@@ -287,9 +285,11 @@
         event.target.classList.add('active');
     }
 
+    // 🔥 編輯模式：控制輸入框、拖曳、以及刪除按鈕的顯示
     function toggleEditMode() {
         isEditMode = !isEditMode;
         const btn = document.getElementById('editToggleBtn');
+        const delBtn = document.getElementById('btnDelete');
         const tbody = document.getElementById('stockBody');
         const inputs = document.querySelectorAll('.name-input');
         
@@ -299,6 +299,9 @@
             tbody.classList.add('is-editing');
             inputs.forEach(input => input.disabled = false);
             
+            // 只有管理員在編輯模式下才看得到刪除按鈕
+            if(isAdmin) delBtn.style.display = 'inline-flex';
+
             sortableInstance = Sortable.create(tbody, {
                 handle: '.drag-handle',
                 animation: 150,
@@ -309,17 +312,12 @@
             btn.classList.remove('editing');
             tbody.classList.remove('is-editing');
             inputs.forEach(input => input.disabled = true);
+            
+            // 離開編輯模式時隱藏刪除按鈕
+            delBtn.style.display = 'none';
+
             if (sortableInstance) sortableInstance.destroy();
         }
-    }
-
-    // 🔥 即期品開關邏輯
-    function toggleExpiringFilter() {
-        showExpiringOnly = !showExpiringOnly;
-        const btn = document.getElementById('btnExpiring');
-        if (showExpiringOnly) btn.classList.add('active');
-        else btn.classList.remove('active');
-        renderTable();
     }
 
     async function updateOrderAfterDrag() {
@@ -345,7 +343,7 @@
 
     async function renameItem(oldName, newName) {
         if(!newName || newName === oldName) return;
-        if(!confirm(`確定要將 "${oldName}" 改名為 "${newName}" 嗎？`)) { loadInventory(); return; }
+        if(!confirm(`確定要將 "${oldName}" 改名為 "${newName}" 嗎？\n(這會同時更新該品項的所有庫存紀錄)`)) { loadInventory(); return; }
         try {
             const { error } = await supabase.from('inventory').update({ name: newName }).eq('name', oldName);
             if(error) throw error;
@@ -354,14 +352,19 @@
         } catch(e) { alert("改名失敗: " + e.message); loadInventory(); }
     }
 
-    // 🔥 刪除品項功能
-    async function deleteItem(name) {
-        if(!confirm(`❌ 警告：確定要刪除 "${name}" 嗎？\n此動作將刪除該品項的所有庫存資料，無法復原！`)) return;
+    // 🔥 批量刪除功能 (上方按鈕觸發)
+    async function deleteSelectedItems() {
+        if(selectedItems.size === 0) return alert("請先勾選要刪除的品項");
+        if(!confirm(`❌ 警告：確定要刪除選取的 ${selectedItems.size} 個品項嗎？\n\n此動作將「永久刪除」這些品項的所有庫存資料，無法復原！`)) return;
+        
         try {
-            const { error } = await supabase.from('inventory').delete().eq('name', name);
-            if(error) throw error;
-            await logAction('刪除', name, 0, 0, '-', '手動刪除', '管理員');
-            alert("已刪除");
+            for (let name of selectedItems) {
+                const { error } = await supabase.from('inventory').delete().eq('name', name);
+                if(error) throw error;
+                await logAction('刪除', name, 0, 0, '-', '批量刪除', '管理員');
+            }
+            alert("✅ 刪除完成");
+            clearSelection();
             loadInventory();
         } catch(e) { alert("刪除失敗: " + e.message); }
     }
@@ -410,21 +413,7 @@
         const filtered = groupedInventory.filter(group => {
             const matchText = group.name.toLowerCase().includes(searchText);
             const matchCat = filterCat === 'ALL' || group.category === filterCat;
-            
-            // 🔥 即期品過濾邏輯
-            let isExpiring = false;
-            if (showExpiringOnly) {
-                // 檢查該品項是否有任何一批貨剩餘效期 <= 30 天
-                isExpiring = group.batches.some(b => {
-                    if (!b.expiry_date) return false;
-                    const days = (new Date(b.expiry_date) - today) / (1000 * 60 * 60 * 24);
-                    return days <= 30;
-                });
-            } else {
-                isExpiring = true; // 不過濾時全都顯示
-            }
-
-            return matchText && matchCat && isExpiring;
+            return matchText && matchCat;
         });
 
         if (filtered.length === 0) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#999;">查無資料</td></tr>'; return; }
@@ -449,9 +438,6 @@
             const isChecked = selectedItems.has(group.name) ? 'checked' : '';
             const isDisabled = isEditMode ? '' : 'disabled';
             
-            // 🔥 新增：刪除按鈕 (僅在編輯模式顯示)
-            const deleteBtn = `<button class="btn-delete-item admin-only" onclick="deleteItem('${group.name}')"><i class="fas fa-trash"></i></button>`;
-
             tr.innerHTML = `
                 <td class="checkbox-cell"><input type="checkbox" class="item-check" value="${group.name}" ${isChecked} onchange="toggleSelection('${group.name}', this)"></td>
                 
@@ -480,15 +466,11 @@
                 
                 <td class="action-cell">
                     <button class="action-btn btn-detail" onclick="openDetailModal('${group.name}')">詳情</button>
-                    ${deleteBtn}
                 </td>
             `;
             tbody.appendChild(tr);
         });
         updateFab();
-        
-        // 重新檢查 Admin 權限以顯示刪除按鈕
-        if(isAdmin) document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-flex');
     }
 
     function toggleSelection(name, checkbox) {
@@ -836,6 +818,48 @@
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "庫存總表");
         XLSX.writeFile(wb, `庫存總表_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    // 🔥 新增：即期報表匯出功能
+    function exportExpiringReport() {
+        const today = new Date();
+        const expiringItems = groupedInventory.filter(group => {
+            return group.batches.some(b => {
+                if (!b.expiry_date) return false;
+                const days = (new Date(b.expiry_date) - today) / (1000 * 60 * 60 * 24);
+                return days <= 30; 
+            });
+        });
+
+        if (expiringItems.length === 0) return alert("✅ 目前沒有 30 天內的即期品！");
+
+        const exportData = expiringItems.map(group => {
+            let row = {
+                "排序": group.sortOrder,
+                "分類": group.category,
+                "品名": group.name,
+                "總庫存": group.totalQty,
+                "單位": group.unit
+            };
+
+            // 只列出快過期的那批貨，還是列出該品項所有貨？通常是列出該品項所有，方便調度
+            const validBatches = group.batches
+                .filter(b => b.quantity > 0)
+                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
+
+            for (let i = 0; i < 5; i++) {
+                const num = i + 1;
+                const batch = validBatches[i];
+                row[`庫存${num}`] = batch ? batch.quantity : ""; 
+                row[`效期${num}`] = batch ? (batch.expiry_date || '無效期') : "";
+            }
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "即期品清單");
+        XLSX.writeFile(wb, `即期品報表_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
 
     async function exportLogs() {
