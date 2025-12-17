@@ -30,9 +30,12 @@
         .btn-download { background-color: #27ae60; margin-left: auto; }
         .btn-download:hover { background-color: #219150; }
 
-        /* 刪除按鈕 (紅色) */
-        .btn-delete { background-color: #e74c3c; }
+        /* 刪除按鈕 (紅色) - 預設隱藏，只有管理員可見 */
+        .btn-delete { background-color: #e74c3c; display: none; } 
         .btn-delete:hover { background-color: #c0392b; }
+
+        /* 只有管理員才顯示的樣式 */
+        .admin-visible { display: inline-block !important; }
 
         .btn-back { background-color: #7f8c8d; text-decoration: none; display: inline-block; padding: 8px 16px; border-radius: 4px; color: white; font-weight: bold; font-size: 14px;}
 
@@ -136,7 +139,8 @@
         <button class="btn btn-search" onclick="fetchData()">🔍 查詢紀錄</button>
         
         <button class="btn btn-download" onclick="handleDownloadOnly()">📥 下載選取照片</button>
-        <button class="btn btn-delete" onclick="handleDeleteOnly()">🗑️ 刪除選取資料</button>
+        
+        <button id="btn-delete" class="btn btn-delete" onclick="handleDeleteOnly()">🗑️ 刪除選取資料</button>
     </div>
 
     <div class="table-container">
@@ -167,7 +171,10 @@
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
     const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
+    
     let currentRecords = []; 
+    let isAdmin = false; // 🔥 全域變數，紀錄是否為管理員
+    let currentUserEmail = "";
 
     const weekDays = ['(日)', '(一)', '(二)', '(三)', '(四)', '(五)', '(六)'];
 
@@ -181,10 +188,34 @@
 
     async function checkSession() {
         const { data } = await supabase.auth.getSession();
-        if(!data.session) { alert("請先登入"); window.location.href = 'index.html'; } 
-        else { 
-            fetchData(); 
-            updateGlobalStats(); 
+        if(!data.session) { alert("請先登入"); window.location.href = 'index.html'; return; } 
+        
+        currentUserEmail = data.session.user.email;
+        
+        // 🔥 檢查使用者權限
+        await checkUserRole();
+
+        fetchData(); 
+        updateGlobalStats(); 
+    }
+
+    // 🔥 檢查是否為管理員
+    async function checkUserRole() {
+        try {
+            const { data } = await supabase.from('user_roles').select('role').eq('email', currentUserEmail).single();
+            // 如果 user_roles 沒資料，data 會是 null，不報錯，isAdmin 預設 false
+            isAdmin = (data && data.role === 'admin');
+            
+            if (isAdmin) {
+                // 如果是管理員，顯示刪除按鈕
+                document.getElementById('btn-delete').style.display = 'inline-block';
+            } else {
+                // 如果是員工，確保刪除按鈕隱藏
+                document.getElementById('btn-delete').style.display = 'none';
+            }
+        } catch(e) {
+            console.warn("User role check failed or no role found:", e);
+            isAdmin = false;
         }
     }
 
@@ -237,7 +268,6 @@
                 }
             };
 
-            // 🔥 修改處：隱藏了「護家」的午餐與晚餐欄位
             const row = `
                 <tr class="${isWeekend ? 'weekend' : ''}">
                     <td><input type="checkbox" class="date-checkbox" value="${dateStr}"></td>
@@ -253,9 +283,6 @@
         }
     }
 
-    // ==========================================
-    // 全域統計功能
-    // ==========================================
     async function updateGlobalStats() {
         const { count, error } = await supabase
             .from('meal_records')
@@ -358,11 +385,14 @@
     }
 
     async function handleDeleteOnly() {
+        // 🔥 雙重防呆：如果不是管理員，直接拒絕
+        if (!isAdmin) {
+            alert("❌ 權限不足：只有管理員可以刪除資料。");
+            return;
+        }
+
         const checkboxes = document.querySelectorAll('.date-checkbox:checked');
         if (checkboxes.length === 0) { alert("請先勾選要刪除的日期"); return; }
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { alert("請先登入"); return; }
 
         if(!confirm(`⚠️ 危險操作警告 ⚠️\n\n您即將「永久刪除」選取日期的所有照片與紀錄。\n刪除後無法復原！\n\n您確定要繼續嗎？`)) return;
         
