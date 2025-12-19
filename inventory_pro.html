@@ -2,144 +2,977 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>義大營養科資訊系統 - 登入</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>營養品庫存管理系統</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
-        h2 { color: #1a73e8; margin-bottom: 20px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px; transition: 0.3s; }
-        button:hover { background: #1557b0; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .error { color: red; font-size: 14px; margin-top: 10px; min-height: 20px; word-wrap: break-word;}
+        /* 基礎設定 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f0f2f5; margin: 0; padding: 5px; color: #333; -webkit-tap-highlight-color: transparent; }
+        .container { max-width: 1100px; margin: 0 auto; padding-bottom: 120px; }
+        
+        /* 頁首 Header */
+        .header { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; background: white; padding: 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .header-top { display: flex; justify-content: space-between; align-items: center; }
+        .back-btn { text-decoration: none; color: #666; font-weight: bold; font-size: 0.9em; display: flex; align-items: center; gap: 5px; }
+        h2 { margin: 0; color: #2c3e50; font-size: 1.2em; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 5px; margin-bottom: 10px; background: #e4e6eb; padding: 3px; border-radius: 8px; }
+        .tab-btn { flex: 1; padding: 8px; border: none; background: transparent; cursor: pointer; border-radius: 6px; font-weight: bold; color: #65676b; transition: 0.2s; font-size: 0.95em; }
+        .tab-btn.active { background: white; color: #1a73e8; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Controls */
+        .controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; background: white; padding: 10px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .search-input { flex: 2; min-width: 120px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
+        .category-select { flex: 1; min-width: 90px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; }
+        .sort-select { flex: 1; min-width: 110px; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; background-color: #fff; }
+
+        /* 按鈕群組 */
+        .btn-group { display: flex; gap: 5px; flex-wrap: wrap; width: 100%; margin-top: 5px; align-items: center; }
+        .action-btn { padding: 8px 12px; border: none; border-radius: 6px; cursor: pointer; color: white; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 0.85em; transition: 0.2s; }
+        
+        .btn-in { background: #34c759; } 
+        .btn-out { background: #ff3b30; } 
+        .btn-import { background: #007aff; } 
+        .btn-export { background: #5856d6; } 
+        .btn-stocktake { background: #ff9500; } 
+        .btn-detail { background: #4cd964; color: white; } 
+        .btn-warning { background: #ffcc00; color: #333; }
+        .btn-delete { background: #ff3b30; color: white; display: none; } 
+
+        .btn-lock { background: #6c757d; color: white; }
+        .btn-lock.editing { background: #dc3545; }
+        .admin-only { display: none; }
+
+        /* Table */
+        table { width: 100%; border-collapse: separate; border-spacing: 0; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: #555; font-weight: bold; white-space: nowrap; font-size: 0.9em; }
+        .qty-cell { font-size: 1.2em; color: #007aff; font-weight: 800; }
+        .checkbox-cell { width: 30px; text-align: center; }
+        .checkbox-cell input { width: 20px; height: 20px; }
+
+        /* 🔥 Badge Status (設定為 13px) */
+        .badge { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 13px; /* ✅ 設定為 13px */
+            color: white; 
+            font-weight: bold; 
+            display: inline-block; 
+            text-align: center; 
+        }
+        .bg-green { background: #28a745; }
+        .bg-blue { background: #17a2b8; } 
+        .bg-yellow { background: #ffc107; color: #333; }
+        .bg-red { background: #dc3545; }
+        .bg-cat { background: #8e8e93; color: white; margin-right: 4px; }
+
+        /* 品名編輯樣式 */
+        .edit-input { border: none; background: transparent; font-weight: bold; font-size: 1em; color: #333; width: 100%; padding: 4px; margin: 0; box-sizing: border-box; }
+        .is-editing .edit-input { border: 1px solid #007aff; background: #fff; padding: 5px; border-radius: 4px; }
+        .edit-input:disabled { opacity: 1; -webkit-text-fill-color: #333; }
+        
+        /* 🔥 分類編輯框 (設定為 13px) */
+        .cat-input { 
+            font-size: 13px; /* ✅ 設定為 13px */
+            text-align: center; 
+            color: #fff; 
+            background: #8e8e93; 
+            width: 90px; 
+            border-radius: 4px; 
+            padding: 4px;
+        }
+        .is-editing .cat-input { color: #333; background: #fff; }
+
+        /* Mobile Layout */
+        @media (max-width: 768px) {
+            thead { display: none; }
+            tr { display: flex; flex-wrap: nowrap; align-items: center; padding: 8px 5px; border-bottom: 1px solid #eee; background: white; }
+            td { border: none; padding: 0; display: block; }
+            .checkbox-cell { width: 30px; display: flex !important; justify-content: center; }
+            .sort-cell { width: 30px; font-weight: bold; color: #888; font-size: 1.1em; text-align: center; display: block !important; }
+            .main-content-cell { flex: 1; padding-left: 5px; padding-right: 5px; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+            .row-top { display: flex; align-items: center; margin-bottom: 4px; gap: 5px; }
+            .row-bottom { display: flex; align-items: center; font-size: 0.95em; color: #666; gap: 8px; }
+            .action-cell { width: auto; text-align: right; }
+            .btn-detail { padding: 6px 10px; font-size: 13px; }
+            .desktop-only-cell { display: none !important; }
+        }
+        @media (min-width: 769px) { .mobile-wrapper { display: none; } }
+
+        .drag-handle { cursor: grab; color: #aaa; padding: 5px; display: none; }
+        .is-editing .drag-handle { display: inline-block; }
+
+        /* FAB */
+        .fab-container { position: fixed; bottom: 20px; right: 20px; z-index: 900; display: none; flex-direction: column; gap: 15px; align-items: flex-end; }
+        .fab-main { background: linear-gradient(135deg, #007aff, #005ecb); color: white; padding: 12px 20px; border-radius: 50px; font-weight: bold; font-size: 1em; box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4); cursor: pointer; display: flex; align-items: center; gap: 8px; }
+        .fab-clear { background: #ff3b30; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3); cursor: pointer; font-size: 1.1em; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end; z-index: 1000; }
+        .modal-content { background: white; width: 100%; max-width: 500px; padding: 20px; border-radius: 15px 15px 0 0; max-height: 85vh; overflow-y: auto; display: flex; flex-direction: column; }
+        @media (min-width: 769px) { .modal { align-items: center; } .modal-content { border-radius: 12px; width: 90%; } }
+        
+        .checkout-list { list-style: none; padding: 0; margin-bottom: 15px; max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; background: #fafafa; }
+        .checkout-item { padding: 10px; border-bottom: 1px solid #eee; background: white; }
+        .checkout-item-top { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; font-size: 15px; }
+        .checkout-item-bottom { display: flex; gap: 5px; align-items: center; }
+        .batch-select { flex: 2; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; background: white; }
+        .batch-qty-input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px; text-align: center; font-size: 14px; }
+        .search-dropdown { position: absolute; top: 100%; left: 0; width: 100%; background: white; border: 1px solid #ddd; border-radius: 0 0 8px 8px; max-height: 200px; overflow-y: auto; z-index: 10; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; }
+        .search-item { padding: 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 15px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
     </style>
 </head>
 <body>
-    <div class="login-box">
-        <h2>🏥 義大營養科資訊系統</h2>
-        <input type="email" id="email" placeholder="帳號 (Email)">
-        <input type="password" id="password" placeholder="密碼">
-        <button id="loginBtn">登入系統</button> 
-        <div id="msg" class="error"></div>
+
+<div class="container">
+    <div class="header">
+        <div class="header-top">
+            <h2>📦 庫存管理 <span id="roleLabel"></span></h2>
+            <a href="menu.html" class="back-btn">⬅ 選單</a>
+        </div>
+        <div style="font-size:12px; color:#888;" id="userInfo">載入中...</div>
     </div>
 
-    <script>
-        // 【除錯第一道防線】全域錯誤攔截
-        // 只要有任何 JS 錯誤，直接跳窗顯示，不再讓手機默默沒反應
-        window.onerror = function(message, source, lineno, colno, error) {
-            alert("⚠️ 系統發生嚴重錯誤：\n" + message + "\n行數：" + lineno);
-            return false;
-        };
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('stock')">📊 總庫存</button>
+        <button class="tab-btn" onclick="switchTab('logs')">📝 紀錄</button>
+    </div>
 
-        const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
-        const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; 
-
-        let supabase;
-
-        // 【除錯第二道防線】檢查 Supabase 是否被防火牆擋住
-        try {
-            if (typeof window.supabase === 'undefined') {
-                throw new Error("Supabase 核心元件載入失敗！\n您的網路可能封鎖了 CDN 連線。");
-            }
-            supabase = window.supabase.createClient(RAW_URL, RAW_KEY);
-            console.log("Supabase 初始化成功");
-        } catch (e) {
-            document.getElementById('msg').innerText = "❌ 系統無法啟動";
-            document.getElementById('loginBtn').disabled = true;
-            document.getElementById('loginBtn').innerText = "系統損壞";
-            alert(e.message);
-        }
-
-        // 自動登出舊 Session (加強版，防止報錯)
-        (async () => {
-            if (!supabase) return;
-            try {
-                const { data } = await supabase.auth.getSession();
-                if (data && data.session) {
-                    await supabase.auth.signOut();
-                    console.log("已清除舊登入狀態");
-                }
-            } catch (e) {
-                console.warn("自動登出時發生小錯誤 (可忽略):", e);
-            }
-        })();
-
-        // 【除錯第三道防線】使用 addEventListener 綁定按鈕
-        const btn = document.getElementById('loginBtn');
-        if (btn) {
-            btn.addEventListener('click', handleLogin);
-        } else {
-            alert("錯誤：找不到登入按鈕");
-        }
-
-        async function handleLogin() {
-            // 再次檢查核心是否載入
-            if (!supabase) {
-                alert("系統未正確初始化，請檢查網路並重新整理。");
-                return;
-            }
-
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const msg = document.getElementById('msg');
+    <div id="stock" class="tab-content active">
+        <div class="controls">
+            <select id="categoryFilter" class="category-select" onchange="renderTable()">
+                <option value="ALL">全部分類</option>
+            </select>
             
-            if (!email || !password) {
-                msg.innerText = "請輸入帳號與密碼";
-                return;
-            }
+            <select id="sortSelect" class="sort-select" onchange="renderTable()">
+                <option value="DEFAULT">預設排序</option>
+                <option value="EXPIRY">效期: 近→遠</option>
+            </select>
 
-            // 鎖定按鈕，避免重複點擊
-            btn.disabled = true; 
-            btn.innerText = "驗證中..."; 
-            msg.innerText = "";
+            <input type="text" id="searchInput" class="search-input" placeholder="搜尋品名或編號..." onkeyup="renderTable()">
             
-            try {
-                // 執行登入
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+            <div class="btn-group">
+                <button id="editToggleBtn" class="action-btn btn-lock admin-only" onclick="toggleEditMode()">🔒 編輯</button>
+                <input type="file" id="excel_input" accept=".xlsx, .xls" style="display: none;" onchange="handleExcelImport(this)">
+                <button class="action-btn btn-import admin-only" onclick="document.getElementById('excel_input').click()">📂 匯入</button>
+                <button class="action-btn btn-in admin-only" style="background:#007bff;" onclick="openNewItemModal()">➕ 新增</button>
                 
-                if (error) {
-                    console.error("登入錯誤細節:", error);
-                    
-                    let showMsg = "帳號或密碼錯誤";
-                    
-                    // 判斷是否為網路錯誤 (防火牆/斷網)
-                    if (error.message.includes("Failed to fetch") || error.message.includes("Network")) {
-                        showMsg = "❌ 無法連線伺服器";
-                        alert("⚠️ 網路連線失敗！\n\n您的裝置無法連線至資料庫，這通常是因為：\n1. 醫院/公司防火牆阻擋\n2. 網路訊號不良\n\n請切換成手機 4G 網路再試一次。");
-                    } else if (error.message.includes("Invalid login")) {
-                        showMsg = "帳號或密碼錯誤";
-                    } else {
-                        showMsg = "錯誤: " + error.message;
+                <button class="action-btn btn-stocktake" onclick="downloadBlankForm()">📄 盤點</button>
+                <button class="action-btn btn-export" onclick="exportStock()">📥 報表</button>
+                <button class="action-btn btn-warning" onclick="exportExpiringReport()">⚠️ 即期報表</button>
+                
+                <button id="btnDelete" class="action-btn btn-delete" onclick="deleteSelectedItems()">🗑️ 刪除選取</button>
+            </div>
+        </div>
+        
+        <table id="stockTable">
+            <thead>
+                <tr>
+                    <th width="40">選</th>
+                    <th width="50">排序</th>
+                    <th width="80">分類</th>
+                    <th width="">品名</th>
+                    <th width="60">庫存</th>
+                    <th width="90">效期</th>
+                    <th width="60">操作</th>
+                </tr>
+            </thead>
+            <tbody id="stockBody"></tbody>
+        </table>
+    </div>
+
+    <div id="logs" class="tab-content">
+        <div class="controls" style="justify-content: space-between; align-items: center;">
+            <h3 style="margin:0; font-size: 1.1em;">異動紀錄</h3>
+            <button class="action-btn btn-export" style="width: auto;" onclick="exportLogs()">📥 下載</button>
+        </div>
+        <table id="logTable">
+            <thead>
+                <tr><th>時間</th> <th>動作</th> <th>品名</th> <th>量</th> <th>人員</th></tr>
+            </thead>
+            <tbody id="logBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="fabContainer" class="fab-container">
+    <div class="fab-clear" onclick="clearSelection()" title="取消"><i class="fas fa-trash-alt"></i></div>
+    <div class="fab-main" onclick="openBatchCheckoutModal()"><i class="fas fa-shopping-cart"></i> 領用 (<span id="selectedCount">0</span>)</div>
+</div>
+
+<div id="detailModal" class="modal">
+    <div class="modal-content">
+        <h3 id="detailTitle" style="margin-top:0; border-bottom: 2px solid #f0f0f0; padding-bottom: 15px;"></h3>
+        <div style="max-height: 30vh; overflow-y: auto;"><ul id="batchList" class="checkout-list"></ul></div>
+        <div style="margin-top: 15px; background: #f9f9f9; padding: 15px; border-radius: 8px;">
+            <h4 style="margin:0 0 10px 0; color:#28a745;">➕ 入庫補貨</h4>
+            <div style="display: flex; gap: 8px;">
+                <input type="date" id="newBatchDate" style="flex: 2;">
+                <input type="number" id="newBatchQty" placeholder="數量" style="flex: 1;">
+            </div>
+            <button class="action-btn btn-in" style="width:100%; margin-top:10px;" onclick="addNewBatch()">確認入庫</button>
+        </div>
+        <div style="margin-top:20px; text-align:right;">
+            <button class="action-btn" style="background:#eee; color:#333;" onclick="closeModal('detailModal')">關閉</button>
+        </div>
+    </div>
+</div>
+
+<div id="batchCheckoutModal" class="modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0; color:#007aff;">🛒 領用確認</h3>
+        <div class="form-group" style="position:relative;">
+            <label>加選其他品項</label>
+            <input type="text" id="itemSearchInput" placeholder="輸入關鍵字..." onkeyup="searchItemToAdd()">
+            <div id="searchResults" class="search-dropdown"></div>
+        </div>
+        <div class="form-group"><label>已選清單 (可指定效期)</label><ul id="checkoutList" class="checkout-list"></ul></div>
+        <div class="form-group"><label>領用人</label><input type="text" id="batchRecipient"></div>
+        <div class="form-group"><label>用途/病歷號</label><input type="text" id="batchNote"></div>
+        <div class="modal-footer" style="display:flex; gap:10px;">
+            <button class="action-btn" style="background:#eee; color:#333; flex:1;" onclick="closeModal('batchCheckoutModal')">取消</button>
+            <button class="action-btn btn-out" style="flex:2;" onclick="submitBatchCheckout()">確認領出</button>
+        </div>
+    </div>
+</div>
+
+<div id="newItemModal" class="modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0;">新增品項</h3>
+        <div class="form-group"><label>分類</label><input type="text" id="newCat"></div>
+        <div class="form-group"><label>品名</label><input type="text" id="newItemName"></div>
+        <div class="form-group"><label>單位</label><input type="text" id="newUnit" placeholder="罐"></div>
+        <div class="form-group"><label>效期</label><input type="date" id="newItemDate"></div>
+        <div class="form-group"><label>數量</label><input type="number" id="newItemQty"></div>
+        <div class="modal-footer">
+            <button class="action-btn" style="background:#eee; color:#333;" onclick="closeModal('newItemModal')">取消</button>
+            <button class="action-btn btn-in" onclick="submitNewItem()">新增</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 初始化與安全檢查
+    function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
+    const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
+    const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
+    
+    if (typeof window.supabase === 'undefined') { alert("錯誤：無法載入 Supabase，請檢查網路。"); }
+    const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
+
+    let rawInventory = [];
+    let groupedInventory = [];
+    let currentUser = '';
+    let isAdmin = false;
+    let currentDetailItemName = '';
+    let selectedItems = new Set();
+    let isEditMode = false;
+    let sortableInstance = null;
+
+    (async () => {
+        try {
+            const { data: { session }, error } = await supabase.auth.getSession();
+            if (error) throw error;
+            if (!session) { window.location.href = 'index.html'; return; }
+            currentUser = session.user.email;
+            const userInfoEl = document.getElementById('userInfo');
+            if (userInfoEl) userInfoEl.innerText = currentUser;
+            
+            // 🔥 卡住修復：即使權限檢查失敗，也繼續執行資料讀取
+            await checkUserRole().catch(e => console.warn("Role check error:", e));
+            
+            await loadInventory(); 
+            await loadLogs();
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('newBatchDate').value = today;
+            document.getElementById('newItemDate').value = today;
+        } catch (e) {
+            alert("系統啟動發生錯誤：" + e.message);
+            console.error(e);
+        }
+    })();
+
+    async function checkUserRole() {
+        const { data } = await supabase.from('user_roles').select('role').eq('email', currentUser).single();
+        isAdmin = (data && data.role === 'admin');
+        
+        if (isAdmin) {
+            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-flex');
+            const roleLabel = document.getElementById('roleLabel');
+            if(roleLabel) roleLabel.innerHTML = '<span class="badge bg-red">Admin</span>';
+        } else {
+            const roleLabel = document.getElementById('roleLabel');
+            if(roleLabel) roleLabel.innerHTML = '<span class="badge bg-green">User</span>';
+        }
+    }
+
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabName).classList.add('active');
+        event.target.classList.add('active');
+    }
+
+    function toggleEditMode() {
+        if(!isAdmin) { alert("權限不足"); return; }
+
+        isEditMode = !isEditMode;
+        const btn = document.getElementById('editToggleBtn');
+        const delBtn = document.getElementById('btnDelete');
+        const tbody = document.getElementById('stockBody');
+        const inputs = document.querySelectorAll('.edit-input');
+        
+        if (isEditMode) {
+            btn.innerHTML = '🔓 完成';
+            btn.classList.add('editing');
+            tbody.classList.add('is-editing');
+            inputs.forEach(input => input.disabled = false);
+            
+            delBtn.style.display = 'inline-flex';
+            
+            document.getElementById('sortSelect').value = 'DEFAULT';
+            renderTable(); 
+
+            sortableInstance = Sortable.create(tbody, {
+                handle: '.drag-handle',
+                animation: 150,
+                onEnd: updateOrderAfterDrag
+            });
+        } else {
+            btn.innerHTML = '🔒 編輯';
+            btn.classList.remove('editing');
+            tbody.classList.remove('is-editing');
+            inputs.forEach(input => input.disabled = true);
+            
+            delBtn.style.display = 'none';
+
+            if (sortableInstance) sortableInstance.destroy();
+        }
+    }
+
+    async function updateOrderAfterDrag() {
+        const rows = document.querySelectorAll('#stockBody tr');
+        let updates = [];
+        rows.forEach((row, index) => {
+            const name = row.dataset.name;
+            const newOrder = index + 1;
+            const sortSpan = row.querySelector('.sort-cell span');
+            if(sortSpan) sortSpan.innerText = newOrder;
+
+            const group = groupedInventory.find(g => g.name === name);
+            if(group && group.sortOrder !== newOrder) {
+                group.sortOrder = newOrder;
+                updates.push(name);
+            }
+        });
+        for (let i = 0; i < updates.length; i++) {
+            const group = groupedInventory.find(g => g.name === updates[i]);
+            await supabase.from('inventory').update({ sort_order: group.sortOrder }).eq('name', updates[i]);
+        }
+    }
+
+    async function renameItem(oldName, newName) {
+        if(!isAdmin) return;
+        if(!newName || newName === oldName) return;
+        if(!confirm(`確定要將 "${oldName}" 改名為 "${newName}" 嗎？`)) { loadInventory(); return; }
+        try {
+            const { error } = await supabase.from('inventory').update({ name: newName }).eq('name', oldName);
+            if(error) throw error;
+            await logAction('更名', `${oldName}->${newName}`, 0, 0, '-', '品名修改', '管理員');
+            alert("✅ 改名成功"); loadInventory();
+        } catch(e) { alert("改名失敗: " + e.message); loadInventory(); }
+    }
+
+    async function updateCategory(name, newCat) {
+        if(!isAdmin) return;
+        if(!newCat) return;
+        try {
+            const { error } = await supabase.from('inventory').update({ category: newCat }).eq('name', name);
+            if(error) throw error;
+            loadInventory();
+        } catch(e) { alert("分類更新失敗: " + e.message); loadInventory(); }
+    }
+
+    async function deleteSelectedItems() {
+        if(!isAdmin) return alert("❌ 權限不足：只有管理員可以刪除資料");
+        
+        if(selectedItems.size === 0) return alert("請先勾選要刪除的品項");
+        if(!confirm(`❌ 警告：確定要刪除選取的 ${selectedItems.size} 個品項嗎？\n\n此動作將「永久刪除」這些品項的所有庫存資料，無法復原！`)) return;
+        
+        try {
+            for (let name of selectedItems) {
+                const { error } = await supabase.from('inventory').delete().eq('name', name);
+                if(error) throw error;
+                await logAction('刪除', name, 0, 0, '-', '批量刪除', '管理員');
+            }
+            alert("✅ 刪除完成");
+            clearSelection();
+            loadInventory();
+        } catch(e) { alert("刪除失敗: " + e.message); }
+    }
+
+    async function loadInventory() {
+        const tbody = document.getElementById('stockBody');
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">載入中...</td></tr>';
+        
+        const { data, error } = await supabase.from('inventory').select('*').order('expiry_date', { ascending: true });
+        if(error) { 
+            // 🔥 卡住修復：若出錯，顯示錯誤訊息並清除 loading 狀態
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:red;">資料讀取失敗: ${error.message}</td></tr>`;
+            return; 
+        }
+        rawInventory = data || [];
+        groupData(rawInventory);
+        updateCategoryFilter();
+        renderTable();
+    }
+
+    function groupData(data) {
+        const groups = {};
+        data.forEach(item => {
+            const name = item.name;
+            if (!groups[name]) {
+                groups[name] = { name: name, category: item.category, unit: item.unit, totalQty: 0, batches: [], sortOrder: item.sort_order || 999 };
+            }
+            groups[name].totalQty += item.quantity;
+            groups[name].batches.push(item);
+        });
+        groupedInventory = Object.values(groups).sort((a, b) => (a.sortOrder - b.sortOrder));
+    }
+
+    function updateCategoryFilter() {
+        const select = document.getElementById('categoryFilter');
+        const currentVal = select.value;
+        const categories = [...new Set(groupedInventory.map(i => i.category || '未分類'))].sort();
+        select.innerHTML = '<option value="ALL">全部分類</option>';
+        categories.forEach(cat => select.innerHTML += `<option value="${cat}">${cat}</option>`);
+        select.value = currentVal;
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('stockBody');
+        const searchText = document.getElementById('searchInput').value.toLowerCase();
+        const filterCat = document.getElementById('categoryFilter').value;
+        const sortMode = document.getElementById('sortSelect').value; 
+        const today = new Date();
+
+        tbody.innerHTML = '';
+        
+        const filtered = groupedInventory.filter(group => {
+            // 🔥 編號搜尋功能
+            const matchText = group.name.toLowerCase().includes(searchText) || 
+                              String(group.sortOrder).includes(searchText);
+            const matchCat = filterCat === 'ALL' || group.category === filterCat;
+            return matchText && matchCat;
+        });
+
+        // 排序邏輯
+        if (sortMode === 'EXPIRY') {
+            filtered.sort((a, b) => {
+                const getNearestDate = (group) => {
+                    if (!group.batches || group.batches.length === 0) return '9999-12-31';
+                    const validDates = group.batches
+                        .map(batch => batch.expiry_date)
+                        .filter(d => d) 
+                        .sort(); 
+                    return validDates.length > 0 ? validDates[0] : '9999-12-31';
+                };
+                
+                const dateA = getNearestDate(a);
+                const dateB = getNearestDate(b);
+                
+                if (dateA < dateB) return -1;
+                if (dateA > dateB) return 1;
+                return 0;
+            });
+        } else {
+            filtered.sort((a, b) => a.sortOrder - b.sortOrder);
+        }
+
+        if (filtered.length === 0) { 
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:#999;">查無資料</td></tr>'; 
+            return; 
+        }
+
+        filtered.forEach(group => {
+            const validBatches = group.batches.filter(b => b.expiry_date);
+            const nearestBatch = validBatches.length > 0 ? validBatches.sort((a,b) => a.expiry_date.localeCompare(b.expiry_date))[0] : null;
+            let statusText = '無效期';
+            let statusClass = 'bg-green';
+            
+            if (nearestBatch) {
+                const dateStr = nearestBatch.expiry_date;
+                const diffDays = Math.ceil((new Date(dateStr) - today) / (1000 * 60 * 60 * 24)); 
+                if (diffDays < 0) { statusText = '已過期'; statusClass = 'bg-red'; }
+                else if (diffDays <= 30) { statusText = `剩${diffDays}天`; statusClass = 'bg-yellow'; }
+                else if (diffDays <= 60) { statusText = dateStr; statusClass = 'bg-blue'; }
+                else { statusText = dateStr; statusClass = 'bg-green'; }
+            } else { statusClass = 'bg-cat'; }
+
+            const tr = document.createElement('tr');
+            tr.dataset.name = group.name;
+            const isChecked = selectedItems.has(group.name) ? 'checked' : '';
+            const isDisabled = isEditMode ? '' : 'disabled';
+            
+            tr.innerHTML = `
+                <td class="checkbox-cell"><input type="checkbox" class="item-check" value="${group.name}" ${isChecked} onchange="toggleSelection('${group.name}', this)"></td>
+                
+                <td class="sort-cell">
+                    <i class="fas fa-bars drag-handle"></i>
+                    <span>${group.sortOrder}</span>
+                </td>
+                
+                <td class="desktop-only-cell">
+                    <input type="text" class="edit-input cat-input" value="${group.category}" ${isDisabled} onchange="updateCategory('${group.name}', this.value)">
+                </td>
+                <td class="desktop-only-cell">
+                    <input type="text" class="edit-input name-input" value="${group.name}" ${isDisabled} onchange="renameItem('${group.name}', this.value)">
+                </td>
+                <td class="desktop-only-cell qty-cell">${group.totalQty}</td>
+                <td class="desktop-only-cell"><span class="badge ${statusClass}">${statusText}</span></td>
+                
+                <td class="main-content-cell mobile-wrapper">
+                    <div class="row-top">
+                        <input type="text" class="edit-input cat-input" value="${group.category}" ${isDisabled} onchange="updateCategory('${group.name}', this.value)">
+                        <input type="text" class="edit-input name-input name-text" value="${group.name}" ${isDisabled} onchange="renameItem('${group.name}', this.value)">
+                    </div>
+                    <div class="row-bottom">
+                         <span>庫存: <strong style="color:#007aff;">${group.totalQty}</strong></span>
+                         <span class="badge ${statusClass}" style="transform:scale(0.9);">${statusText}</span>
+                    </div>
+                </td>
+                
+                <td class="action-cell">
+                    <button class="action-btn btn-detail" onclick="openDetailModal('${group.name}')">詳情</button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        updateFab();
+    }
+
+    function toggleSelection(name, checkbox) {
+        if (checkbox.checked) selectedItems.add(name); else selectedItems.delete(name);
+        updateFab();
+    }
+    function clearSelection() {
+        selectedItems.clear();
+        document.querySelectorAll('.item-check').forEach(cb => cb.checked = false);
+        updateFab();
+    }
+    function updateFab() {
+        const container = document.getElementById('fabContainer');
+        container.style.display = selectedItems.size > 0 ? 'flex' : 'none';
+        document.getElementById('selectedCount').innerText = selectedItems.size;
+    }
+
+    function openBatchCheckoutModal() {
+        renderCheckoutList();
+        document.getElementById('itemSearchInput').value = '';
+        document.getElementById('searchResults').style.display = 'none';
+        document.getElementById('batchRecipient').value = '';
+        document.getElementById('batchNote').value = '';
+        document.getElementById('batchCheckoutModal').style.display = 'flex';
+    }
+
+    function renderCheckoutList() {
+        const list = document.getElementById('checkoutList');
+        list.innerHTML = '';
+        selectedItems.forEach(name => {
+            const group = groupedInventory.find(g => g.name === name);
+            if (!group) return;
+            const sortedBatches = group.batches.sort((a, b) => {
+                if (!a.expiry_date) return 1; if (!b.expiry_date) return -1;
+                return new Date(a.expiry_date) - new Date(b.expiry_date);
+            });
+            let optionsHtml = '';
+            sortedBatches.forEach(b => {
+                if (b.quantity > 0) {
+                    const dateDisplay = b.expiry_date || '無效期';
+                    optionsHtml += `<option value="${b.id}" data-max="${b.quantity}">效期:${dateDisplay} (庫存:${b.quantity})</option>`;
+                }
+            });
+            const li = document.createElement('li');
+            li.className = 'checkout-item';
+            li.innerHTML = `
+                <div class="checkout-item-top"><span>${name}</span><i class="fas fa-times" style="color:#ff3b30; cursor:pointer;" onclick="removeFromCart('${name}')"></i></div>
+                <div class="checkout-item-bottom"><select class="batch-select" id="select-${name}" onchange="updateMaxQty('${name}')">${optionsHtml}</select><input type="number" class="batch-qty-input" id="qty-${name}" value="1" min="1"></div>
+            `;
+            list.appendChild(li);
+            setTimeout(() => updateMaxQty(name), 0);
+        });
+    }
+
+    function updateMaxQty(name) {
+        const select = document.getElementById(`select-${name}`);
+        const input = document.getElementById(`qty-${name}`);
+        if(select.selectedIndex === -1) { input.value = 0; input.max = 0; return; }
+        const max = select.options[select.selectedIndex].dataset.max;
+        input.max = max;
+        if(parseInt(input.value) > parseInt(max)) input.value = max;
+    }
+
+    function removeFromCart(name) {
+        selectedItems.delete(name);
+        renderCheckoutList();
+        const cb = document.querySelector(`.item-check[value="${name}"]`);
+        if(cb) cb.checked = false;
+        updateFab();
+    }
+
+    function searchItemToAdd() {
+        const text = document.getElementById('itemSearchInput').value.toLowerCase();
+        const resultsDiv = document.getElementById('searchResults');
+        resultsDiv.innerHTML = '';
+        if(!text) { resultsDiv.style.display = 'none'; return; }
+        const matches = groupedInventory.filter(g => g.name.toLowerCase().includes(text));
+        if (matches.length > 0) {
+            resultsDiv.style.display = 'block';
+            matches.forEach(g => {
+                const div = document.createElement('div');
+                div.className = 'search-item';
+                div.innerHTML = `${g.name} (總庫存: ${g.totalQty})`;
+                div.onclick = () => { selectedItems.add(g.name); renderCheckoutList(); resultsDiv.style.display = 'none'; document.getElementById('itemSearchInput').value = ''; };
+                resultsDiv.appendChild(div);
+            });
+        }
+    }
+
+    async function submitBatchCheckout() {
+        const recipient = document.getElementById('batchRecipient').value.trim();
+        const note = document.getElementById('batchNote').value.trim();
+        if (!recipient) return alert("請填寫領用人");
+        let transactions = [];
+        const items = document.querySelectorAll('.checkout-item');
+        for (let item of items) {
+            const select = item.querySelector('.batch-select');
+            const input = item.querySelector('.batch-qty-input');
+            if(!select.value) continue; 
+            const batchId = select.value;
+            const qty = parseInt(input.value);
+            const batchName = item.querySelector('.checkout-item-top span').innerText;
+            const expiryText = select.options[select.selectedIndex].text;
+            const currentStock = parseInt(select.options[select.selectedIndex].dataset.max);
+            if (qty > currentStock) return alert(`${batchName} 庫存不足 (剩餘 ${currentStock})`);
+            transactions.push({ id: batchId, name: batchName, deduct: qty, newQty: currentStock - qty, expiryDisplay: expiryText });
+        }
+        if (transactions.length === 0) return alert("無有效領用項目");
+        if (!confirm("確定領出？")) return;
+        try {
+            for (let t of transactions) {
+                const { error } = await supabase.from('inventory').update({ quantity: t.newQty }).eq('id', t.id);
+                if(error) throw error;
+                await logAction('領用', t.name, t.deduct, t.newQty, t.expiryDisplay.split(' ')[0], `用途:${note}`, recipient);
+            }
+            alert("✅ 領用成功"); clearSelection(); closeModal('batchCheckoutModal'); loadInventory();
+        } catch(e) { alert("錯誤: " + e.message); }
+    }
+
+    function openDetailModal(name) {
+        const group = groupedInventory.find(g => g.name === name);
+        if(!group) return;
+        currentDetailItemName = name;
+        document.getElementById('detailTitle').innerText = name;
+        const list = document.getElementById('batchList');
+        list.innerHTML = '';
+        group.batches.sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31')).forEach(b => {
+            const li = document.createElement('li');
+            li.style.padding = '10px'; li.style.borderBottom = '1px solid #eee';
+            li.innerHTML = `📅 ${b.expiry_date||'無效期'} <span style="float:right; font-weight:bold; color:#007aff;">${b.quantity} ${group.unit}</span>`;
+            list.appendChild(li);
+        });
+        document.getElementById('detailModal').style.display = 'flex';
+    }
+
+    async function addNewBatch() {
+        const date = document.getElementById('newBatchDate').value;
+        const qty = parseInt(document.getElementById('newBatchQty').value);
+        if(!qty) return alert("請輸入數量");
+        const group = groupedInventory.find(g => g.name === currentDetailItemName);
+        if(!confirm("確定入庫？")) return;
+        try {
+            await supabase.from('inventory').insert([{ name: group.name, category: group.category, unit: group.unit, expiry_date: date||null, quantity: qty, sort_order: group.sortOrder }]);
+            await logAction('入庫', group.name, qty, qty, date, '手動入庫', '管理員');
+            alert("成功"); loadInventory(); closeModal('detailModal');
+        } catch(e) { alert(e.message); }
+    }
+
+    async function logAction(action, name, change, final, expiry, note, operatorName) {
+        const op = operatorName || '管理員';
+        await supabase.from('inventory_logs').insert([{ product_name: name, action_type: action, change_qty: change, final_qty: final, operator: op, note: `${expiry} ${note}` }]);
+    }
+
+    async function loadLogs() {
+        const { data } = await supabase.from('inventory_logs').select('*').order('created_at', {ascending:false}).limit(50);
+        const tbody = document.getElementById('logBody');
+        tbody.innerHTML = '';
+        if(data) {
+            data.forEach(log => {
+                const date = new Date(log.created_at).toLocaleString('zh-TW', {month:'numeric', day:'numeric', hour:'numeric', minute:'numeric'});
+                const color = log.action_type.includes('入') ? '#34c759' : '#ff3b30';
+                tbody.innerHTML += `<tr><td>${date.split(' ')[0]}<br>${date.split(' ')[1]}</td><td style="color:${color};font-weight:bold;">${log.action_type}</td><td>${log.product_name}</td><td>${log.change_qty}</td><td>${log.operator}</td></tr>`;
+            });
+        }
+    }
+
+    // 盤點覆蓋匯入
+    function handleExcelImport(input) {
+        const file = input.files[0];
+        if(!file) return;
+        
+        if(!confirm("⚠️⚠️ 警告 ⚠️⚠️\n\n您現在使用的是【盤點覆蓋模式】！\n\n系統將會「刪除」Excel 中所列品項的「所有舊庫存」，\n並完全依照 Excel 上的數量重新建立。\n\n確定要執行盤點修正嗎？")) {
+            input.value = '';
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                let count = 0;
+                
+                const btn = document.querySelector('.btn-import');
+                const originalText = btn.innerText;
+                btn.innerText = "⏳ 處理中...";
+                btn.disabled = true;
+
+                for(let row of json) {
+                    let name = row['品名'];
+                    if(!name) continue;
+
+                    let cat = row['分類'] || '未分類';
+                    let unit = row['單位'] || '罐';
+                    let sortOrder = row['排序'] || 9999;
+
+                    if (!row['排序']) {
+                        const { data: oldData } = await supabase.from('inventory').select('sort_order').eq('name', name).limit(1);
+                        if (oldData && oldData.length > 0) sortOrder = oldData[0].sort_order;
                     }
 
-                    msg.innerText = showMsg;
-                    btn.disabled = false; 
-                    btn.innerText = "登入系統";
-                } else {
-                    // 登入成功
-                    msg.style.color = "green";
-                    msg.innerText = "✅ 驗證成功，正在進入系統...";
-                    
-                    // 嘗試讀取一個簡單的資料，確認資料庫連線權限
-                    try {
-                        await supabase.from('user_roles').select('role').limit(1).single();
-                    } catch(e) { console.log("權限預讀測試:", e); }
+                    await supabase.from('inventory').delete().eq('name', name);
 
-                    setTimeout(() => {
-                        window.location.href = 'menu.html';
-                    }, 500);
+                    let itemsToInsert = [];
+                    if (row['數量'] != null || row['庫存'] != null) {
+                        itemsToInsert.push({ qty: row['數量'] || row['庫存'], date: row['有效日期'] });
+                    }
+                    for (let i = 1; i <= 10; i++) {
+                        let qtyKey = `庫存${i}`;
+                        let dateKey = `效期${i}`;
+                        if (row[qtyKey] != null && row[qtyKey] !== '') {
+                            itemsToInsert.push({ qty: row[qtyKey], date: row[dateKey] });
+                        }
+                    }
+
+                    let totalNewQty = 0;
+                    for (let item of itemsToInsert) {
+                        let finalDate = null;
+                        if (item.date) {
+                            if (typeof item.date === 'number') {
+                                finalDate = new Date(Math.round((item.date - 25569) * 86400 * 1000)).toISOString().split('T')[0];
+                            } else if (typeof item.date === 'string') {
+                                let cleanDate = item.date.trim().replace(/\//g, '-').replace('無效期', '');
+                                if (cleanDate && !isNaN(Date.parse(cleanDate))) {
+                                    finalDate = new Date(cleanDate).toISOString().split('T')[0];
+                                }
+                            }
+                        }
+
+                        if (item.qty !== null && item.qty !== '') {
+                            await supabase.from('inventory').insert([{ 
+                                name: name, category: cat, unit: unit, 
+                                quantity: item.qty, expiry_date: finalDate, sort_order: sortOrder 
+                            }]);
+                            totalNewQty += parseInt(item.qty || 0);
+                        }
+                    }
+                    
+                    if (itemsToInsert.length > 0) {
+                        await logAction('盤點', name, 0, totalNewQty, '-', 'Excel覆蓋修正', '管理員');
+                        count++;
+                    }
                 }
-            } catch (err) {
-                // 捕捉所有未預期的錯誤
-                console.error("系統例外錯誤:", err);
-                msg.innerText = "系統發生例外錯誤";
-                alert("⚠️ 系統發生例外錯誤：\n" + err.message);
-                btn.disabled = false; 
-                btn.innerText = "登入系統";
+
+                alert(`✅ 盤點修正完成！共更新 ${count} 個品項`); 
+                input.value = ''; 
+                btn.innerText = originalText;
+                btn.disabled = false;
+                loadInventory();
+
+            } catch(e) { 
+                alert("❌ 失敗: " + e.message); 
+                console.error(e);
+                input.value = '';
+                document.querySelector('.btn-import').innerText = "📂 匯入";
+                document.querySelector('.btn-import').disabled = false;
             }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function downloadBlankForm() {
+        if(groupedInventory.length === 0) return alert("無資料");
+        
+        const exportData = groupedInventory.map(group => {
+            let row = {
+                "排序": group.sortOrder,
+                "分類": group.category,
+                "品名": group.name,
+                "單位": group.unit,
+                "系統總數": group.totalQty,
+                "盤點填寫區": "" 
+            };
+
+            const validBatches = group.batches
+                .filter(b => b.quantity > 0)
+                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
+
+            for (let i = 0; i < 5; i++) {
+                const num = i + 1;
+                const batch = validBatches[i];
+                row[`庫存${num}`] = batch ? batch.quantity : ""; 
+                row[`效期${num}`] = batch ? (batch.expiry_date || '無效期') : "";
+            }
+            for (let i = 5; i < validBatches.length; i++) {
+                 const num = i + 1;
+                 const batch = validBatches[i];
+                 row[`庫存${num}`] = batch.quantity;
+                 row[`效期${num}`] = batch.expiry_date || '無效期';
+            }
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let R = 1; R <= range.e.r; ++R) {
+            const cell_ref = XLSX.utils.encode_cell({c: 5, r: R});
+            const rowNum = R + 1;
+            const formula = `SUM(G${rowNum},I${rowNum},K${rowNum},M${rowNum},O${rowNum})`; 
+            if(!ws[cell_ref]) ws[cell_ref] = { t: 'n', v: 0 };
+            ws[cell_ref].f = formula;
         }
-    </script>
+
+        ws['!cols'] = [
+            {wch:5}, {wch:10}, {wch:20}, {wch:5}, {wch:8}, {wch:15}, 
+            {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12}, {wch:6}, {wch:12}
+        ];
+        const wb = XLSX.utils.book_new(); 
+        XLSX.utils.book_append_sheet(wb, ws, "盤點單");
+        XLSX.writeFile(wb, `盤點表_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    function exportStock() {
+        if(groupedInventory.length === 0) return alert("無資料");
+        const exportData = groupedInventory.map(group => {
+            let row = {
+                "排序": group.sortOrder,
+                "分類": group.category,
+                "品名": group.name,
+                "總庫存": group.totalQty,
+                "單位": group.unit
+            };
+
+            const validBatches = group.batches
+                .filter(b => b.quantity > 0)
+                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
+
+            for (let i = 0; i < 5; i++) {
+                const num = i + 1;
+                const batch = validBatches[i];
+                row[`庫存${num}`] = batch ? batch.quantity : ""; 
+                row[`效期${num}`] = batch ? (batch.expiry_date || '無效期') : "";
+            }
+            for (let i = 5; i < validBatches.length; i++) {
+                 const num = i + 1;
+                 const batch = validBatches[i];
+                 row[`庫存${num}`] = batch.quantity;
+                 row[`效期${num}`] = batch.expiry_date || '無效期';
+            }
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "庫存總表");
+        XLSX.writeFile(wb, `庫存總表_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    function exportExpiringReport() {
+        const today = new Date();
+        const expiringItems = groupedInventory.filter(group => {
+            return group.batches.some(b => {
+                if (!b.expiry_date) return false;
+                const days = (new Date(b.expiry_date) - today) / (1000 * 60 * 60 * 24);
+                return days <= 30; 
+            });
+        });
+
+        if (expiringItems.length === 0) return alert("✅ 目前沒有 30 天內的即期品！");
+
+        const exportData = expiringItems.map(group => {
+            let row = {
+                "排序": group.sortOrder,
+                "分類": group.category,
+                "品名": group.name,
+                "總庫存": group.totalQty,
+                "單位": group.unit
+            };
+
+            const validBatches = group.batches
+                .filter(b => b.quantity > 0)
+                .sort((a,b) => new Date(a.expiry_date||'9999-12-31') - new Date(b.expiry_date||'9999-12-31'));
+
+            for (let i = 0; i < 5; i++) {
+                const num = i + 1;
+                const batch = validBatches[i];
+                row[`庫存${num}`] = batch ? batch.quantity : ""; 
+                row[`效期${num}`] = batch ? (batch.expiry_date || '無效期') : "";
+            }
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "即期品清單");
+        XLSX.writeFile(wb, `即期品報表_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    async function exportLogs() {
+        const { data } = await supabase.from('inventory_logs').select('*').order('created_at', {ascending:false}).limit(1000);
+        if(!data || data.length === 0) return alert("無紀錄");
+        const exportData = data.map(l => ({ 
+            "時間": new Date(l.created_at).toLocaleString(), "動作": l.action_type, 
+            "品名": l.product_name, "異動": l.change_qty, "備註": l.note, "人員": l.operator 
+        }));
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "紀錄");
+        XLSX.writeFile(wb, `庫存紀錄_${new Date().toISOString().split('T')[0]}.xlsx`);
+    }
+
+    function openNewItemModal() { document.getElementById('newItemModal').style.display = 'flex'; }
+    async function submitNewItem() {
+        const name = document.getElementById('newItemName').value;
+        const qty = document.getElementById('newItemQty').value;
+        if(!name) return;
+        await supabase.from('inventory').insert([{ name: name, category: document.getElementById('newCat').value, unit: document.getElementById('newUnit').value, expiry_date: document.getElementById('newItemDate').value || null, quantity: qty, sort_order: 9999 }]);
+        await logAction('建檔', name, qty, qty, document.getElementById('newItemDate').value || null, '新增品項', '管理員');
+        alert("已新增"); closeModal('newItemModal'); loadInventory();
+    }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+</script>
 </body>
 </html>
