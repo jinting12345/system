@@ -3,79 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>義大營養科資訊系統 - 登入</title>
+    <title>登入 (除錯模式)</title>
     
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/supabase/2.39.7/supabase.min.js"></script>
     
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
         h2 { color: #1a73e8; margin-bottom: 20px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px; transition: 0.3s; }
-        button:hover { background: #1557b0; }
+        
+        /* 按鈕改成紅色，讓您一眼確認是否更新 */
+        button { width: 100%; padding: 12px; background: #d32f2f; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px; transition: 0.3s; font-weight: bold;}
+        button:hover { background: #b71c1c; }
         button:disabled { background: #ccc; cursor: not-allowed; }
         .error { color: red; font-size: 14px; margin-top: 10px; min-height: 20px; word-wrap: break-word;}
     </style>
 </head>
 <body>
     <div class="login-box">
-        <h2>🏥 義大營養科資訊系統</h2>
-        <input type="email" id="email" placeholder="帳號 (Email)">
+        <h2>🏥 系統登入 (除錯版)</h2>
+        <input type="email" id="email" placeholder="帳號">
         <input type="password" id="password" placeholder="密碼">
-        <button id="loginBtn">登入系統</button>
+        
+        <button onclick="handleLogin()" id="loginBtn">🔴 測試登入</button>
+        
         <div id="msg" class="error"></div>
     </div>
 
     <script>
-        // 1. 全域錯誤攔截
-        window.onerror = function(message, source, lineno, colno, error) {
-            alert("⚠️ 瀏覽器阻擋或發生錯誤：\n" + message);
-            return false;
-        };
+        // 1. 初始化設定
+        // 使用 var 避免舊瀏覽器相容性問題
+        var RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
+        var RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; 
+        var supabase = null;
 
-        const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
-        const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; 
-        let supabase;
-
-        // 2. 初始化檢查 (包含失敗後的備用方案提示)
+        // 2. 檢查 Supabase 是否載入
+        // 這次如果沒載入，會直接在「按鈕下方」顯示紅字
         try {
             if (typeof window.supabase === 'undefined') {
-                // 如果 unpkg 也被擋，這裡會捕捉到
-                throw new Error("Supabase 元件被攔截 (null/undefined)");
+                document.getElementById('msg').innerText = "❌ 錯誤：Supabase 未載入 (CDN 被阻擋)";
+            } else {
+                supabase = window.supabase.createClient(RAW_URL, RAW_KEY);
+                console.log("Supabase OK");
             }
-            // 嘗試建立客戶端
-            supabase = window.supabase.createClient(RAW_URL, RAW_KEY);
-            console.log("Supabase 初始化成功");
         } catch (e) {
-            document.getElementById('msg').innerText = "❌ 系統元件被阻擋";
-            document.getElementById('loginBtn').innerText = "請檢查瀏覽器設定";
-            document.getElementById('loginBtn').disabled = true;
-            alert("🛑 嚴重錯誤：\n您的瀏覽器 (Kiwi) 阻擋了系統元件載入。\n\n請嘗試：\n1. 關閉「擋廣告」擴充功能\n2. 關閉「夜間模式」或「隱私防護」\n3. 重新整理網頁");
+            document.getElementById('msg').innerText = "❌ 初始化失敗：" + e.message;
         }
 
-        // 3. 綁定按鈕
-        const btn = document.getElementById('loginBtn');
-        if(btn) btn.addEventListener('click', handleLogin);
-
-        // 4. 自動登出
-        (async () => {
-            if (supabase) {
-                const { data } = await supabase.auth.getSession();
-                if (data.session) await supabase.auth.signOut();
-            }
-        })();
-
+        // 3. 登入函式
         async function handleLogin() {
-            // 二次檢查
+            // 🔥 第一步：直接彈窗，證明按鈕是活的
+            alert("👆 按鈕有反應！正在檢查連線...");
+
+            var email = document.getElementById('email').value.trim();
+            var password = document.getElementById('password').value.trim();
+            var btn = document.getElementById('loginBtn');
+            var msg = document.getElementById('msg');
+
+            // 檢查 supabase
             if (!supabase) {
-                alert("錯誤：系統元件未載入，無法執行登入。\n請檢查 Kiwi 瀏覽器的擴充套件。");
+                alert("⛔ 程式庫未載入！\n請檢查 Kiwi 瀏覽器的「擴充功能」或「隱私設定」是否擋住了腳本。");
                 return;
             }
-
-            const email = document.getElementById('email').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const msg = document.getElementById('msg');
             
             if (!email || !password) {
                 msg.innerText = "請輸入帳號密碼";
@@ -83,32 +73,33 @@
             }
 
             btn.disabled = true; 
-            btn.innerText = "驗證中..."; 
+            btn.innerText = "連線中..."; 
             msg.innerText = "";
             
             try {
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                const { data, error } = await supabase.auth.signInWithPassword({ 
+                    email: email, 
+                    password: password 
+                });
                 
                 if (error) {
-                    let showMsg = "帳號或密碼錯誤";
-                    if (error.message.includes("Failed to fetch")) {
-                        showMsg = "❌ 網路連線失敗";
-                        alert("網路連線失敗！\n如果使用 Kiwi，請檢查是否開啟了 VPN 或防火牆。");
-                    } else if (error.message.includes("Invalid login")) {
-                        showMsg = "帳號或密碼錯誤";
-                    }
-                    msg.innerText = showMsg;
+                    alert("❌ 登入失敗：" + error.message);
+                    msg.innerText = "登入失敗: " + error.message;
                     btn.disabled = false; 
-                    btn.innerText = "登入系統";
+                    btn.innerText = "🔴 測試登入";
                 } else {
+                    alert("✅ 登入成功！準備跳轉...");
                     msg.style.color = "green";
-                    msg.innerText = "✅ 驗證成功，進入系統...";
-                    setTimeout(() => { window.location.href = 'menu.html'; }, 500);
+                    msg.innerText = "登入成功，跳轉中...";
+                    setTimeout(function() {
+                        window.location.href = 'menu.html';
+                    }, 500);
                 }
             } catch (err) {
-                alert("例外錯誤：" + err.message);
-                btn.disabled = false;
-                btn.innerText = "登入系統";
+                alert("⚠️ 系統錯誤：" + err.message);
+                msg.innerText = "系統錯誤";
+                btn.disabled = false; 
+                btn.innerText = "🔴 測試登入";
             }
         }
     </script>
