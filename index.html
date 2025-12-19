@@ -10,7 +10,7 @@
         .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); width: 100%; max-width: 360px; text-align: center; }
         h2 { color: #1a73e8; margin-bottom: 20px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px; }
+        button { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; margin-top: 10px; transition: 0.3s; }
         button:hover { background: #1557b0; }
         button:disabled { background: #ccc; cursor: not-allowed; }
         .error { color: red; font-size: 14px; margin-top: 10px; min-height: 20px;}
@@ -26,30 +26,37 @@
     </div>
 
     <script>
+        // 1. 初始化設定
         function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; 
+
+        // 2. 防火牆/網路檢查：如果 Supabase 沒載入，直接鎖死按鈕並警告
+        if (typeof window.supabase === 'undefined') {
+            alert("❌ 嚴重錯誤：無法連線至系統主機！\n\n原因可能是：\n1. 醫院/公司防火牆封鎖了連線\n2. 網路訊號不穩\n\n請嘗試使用手機 4G 網路。");
+            document.getElementById('loginBtn').disabled = true;
+            document.getElementById('loginBtn').innerText = "無法連線";
+            throw new Error("Supabase SDK not loaded");
+        }
         
         const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
 
-        // ★★★ 修正後的強制登出邏輯 ★★★
-        // 我們只清除 Supabase 的 Session，不要暴力清除 localStorage
-        // 這樣可以達到「每次都要重登」的效果，但不會讓程式壞掉
+        // 3. 自動登出邏輯 (只清 Session，不暴力清 localStorage)
         (async () => {
             try {
-                // 檢查是否已登入，如果是，就登出
                 const { data } = await supabase.auth.getSession();
                 if (data.session) {
                     await supabase.auth.signOut();
+                    console.log("已自動登出舊的工作階段");
                 }
             } catch (e) {
-                console.log("初始化登出時發生小問題(不影響使用):", e);
+                console.warn("初始化檢查:", e);
             }
         })();
 
         async function handleLogin() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value.trim();
             const btn = document.getElementById('loginBtn');
             const msg = document.getElementById('msg');
             
@@ -58,34 +65,53 @@
                 return;
             }
 
-            // 鎖定按鈕，避免重複點擊
+            // 鎖定介面
             btn.disabled = true; 
             btn.innerText = "驗證中..."; 
             msg.innerText = "";
             
             try {
-                // 執行登入
+                // 4. 執行登入
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                 
                 if (error) {
-                    // 登入失敗 (帳號密碼錯誤)
-                    console.error("登入失敗:", error);
-                    msg.innerText = "帳號或密碼錯誤"; // 或是顯示 error.message
-                    btn.disabled = false; 
-                    btn.innerText = "登入系統";
-                } else {
-                    // 登入成功
-                    msg.style.color = "green";
-                    msg.innerText = "登入成功！跳轉中...";
-                    setTimeout(() => {
-                        window.location.href = 'menu.html';
-                    }, 500);
+                    throw error; // 拋出錯誤到 catch 處理
                 }
+
+                // 5. 登入成功，測試資料庫連線 (這步很重要，確認網路真的通)
+                btn.innerText = "讀取資料中...";
+                try {
+                    // 嘗試讀取一筆資料，確認 RLS 權限和網路都沒問題
+                    await supabase.from('user_roles').select('role').limit(1).single();
+                } catch (readError) {
+                    console.warn("資料庫讀取警告 (非致命):", readError);
+                    // 這裡不擋，因為可能是新帳號還沒權限，讓他進去 menu 再說
+                }
+
+                // 6. 跳轉
+                msg.style.color = "green";
+                msg.innerText = "登入成功！跳轉中...";
+                // alert("✅ 登入成功！"); // 手機上有時候 alert 會比 DOM 更新更穩
+                setTimeout(() => {
+                    window.location.href = 'menu.html';
+                }, 300);
+
             } catch (err) {
-                // ★★★ 這裡最重要：捕捉系統崩潰 ★★★
-                // 如果是程式衝突，會跑來這裡，讓按鈕恢復，不會卡死
-                console.error("系統錯誤:", err);
-                msg.innerText = "系統發生錯誤，請重新整理網頁再試。";
+                console.error("登入錯誤:", err);
+                
+                // 根據錯誤類型給出提示
+                let errorMsg = "帳號或密碼錯誤";
+                if (err.message.includes("Failed to fetch") || err.message.includes("Network")) {
+                    errorMsg = "❌ 網路連線失敗 (可能被防火牆阻擋)";
+                    alert(errorMsg + "\n請嘗試切換手機網路試試看。");
+                } else if (err.message.includes("Invalid login")) {
+                    errorMsg = "帳號或密碼錯誤";
+                } else {
+                    errorMsg = "系統錯誤: " + err.message;
+                }
+
+                msg.innerText = errorMsg;
+                msg.style.color = "red";
                 btn.disabled = false; 
                 btn.innerText = "登入系統";
             }
