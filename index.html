@@ -21,28 +21,28 @@
         <h2>🏥 義大營養科資訊系統</h2>
         <input type="email" id="email" placeholder="帳號 (Email)">
         <input type="password" id="password" placeholder="密碼">
-        <button id="loginBtn">登入系統</button> <div id="msg" class="error"></div>
+        <button id="loginBtn">登入系統</button>
+        <div id="msg" class="error"></div>
     </div>
 
     <script>
-        // ★★★ 1. 全域錯誤攔截 (讓手機也能看到報錯) ★★★
+        // 全域錯誤監聽：如果程式爆掉，直接彈窗告訴我們原因
         window.onerror = function(message, source, lineno, colno, error) {
-            alert("⚠️ 系統發生錯誤：\n" + message);
+            alert("⚠️ 程式發生錯誤：\n" + message);
             return false;
         };
 
-        function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII'; 
 
-        // ★★★ 2. 檢查 Supabase 是否成功載入 ★★★
-        // 如果瀏覽器擋擋廣告插件或防火牆擋住 CDN，這裡會直接報錯提醒
         let supabase;
+
+        // 初始化 Supabase
         try {
             if (typeof window.supabase === 'undefined') {
-                throw new Error("Supabase 函式庫未載入，請檢查網路連線或防火牆設定。");
+                throw new Error("Supabase 函式庫未載入，請檢查網路連線。");
             }
-            supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
+            supabase = window.supabase.createClient(RAW_URL, RAW_KEY);
         } catch (e) {
             document.getElementById('msg').innerText = "❌ 系統元件載入失敗";
             document.getElementById('loginBtn').disabled = true;
@@ -50,32 +50,20 @@
             alert(e.message);
         }
 
-        // 自動登出檢查
-        (async () => {
-            if (!supabase) return;
-            try {
-                const { data } = await supabase.auth.getSession();
-                if (data.session) {
-                    await supabase.auth.signOut();
-                }
-            } catch (e) {
-                console.warn("自動登出異常:", e);
-            }
-        })();
-
-        // ★★★ 3. 改用 EventListener 綁定按鈕 (比較穩定) ★★★
-        document.getElementById('loginBtn').addEventListener('click', handleLogin);
+        // 綁定按鈕事件
+        const btn = document.getElementById('loginBtn');
+        if (btn) {
+            btn.addEventListener('click', handleLogin);
+        }
 
         async function handleLogin() {
-            // 如果 supabase 沒初始化成功，直接停止
             if (!supabase) {
-                alert("系統初始化失敗，請重新整理網頁。");
+                alert("系統未正確初始化，請重新整理頁面。");
                 return;
             }
 
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value.trim();
-            const btn = document.getElementById('loginBtn');
             const msg = document.getElementById('msg');
             
             if (!email || !password) {
@@ -83,7 +71,6 @@
                 return;
             }
 
-            // 鎖定介面
             btn.disabled = true; 
             btn.innerText = "驗證中..."; 
             msg.innerText = "";
@@ -93,13 +80,17 @@
                 const { data, error } = await supabase.auth.signInWithPassword({ email, password });
                 
                 if (error) {
-                    // ★★★ 4. 針對錯誤類型給出更明確提示 ★★★
                     console.error("登入錯誤:", error);
                     let showMsg = "帳號或密碼錯誤";
                     
+                    // 判斷是否為網路錯誤
                     if (error.message.includes("Failed to fetch") || error.message.includes("Network")) {
                         showMsg = "❌ 無法連線伺服器 (網路問題)";
                         alert("您的裝置無法連線至資料庫。\n請嘗試切換 Wi-Fi 或使用 4G 網路。");
+                    } else if (error.message.includes("Invalid login")) {
+                        showMsg = "帳號或密碼錯誤";
+                    } else {
+                        showMsg = error.message;
                     }
 
                     msg.innerText = showMsg;
@@ -108,19 +99,19 @@
                 } else {
                     // 登入成功
                     msg.style.color = "green";
-                    msg.innerText = "✅ 驗證成功，資料讀取中...";
+                    msg.innerText = "✅ 驗證成功，跳轉中...";
                     
-                    // 簡單測試連線權限 (確認 RLS 沒擋)
+                    // 簡單測試連線權限 (非必要，但可確認網路暢通)
                     try {
                         await supabase.from('user_roles').select('role').limit(1).single();
                     } catch(e) { console.log("權限預讀警告:", e); }
 
                     setTimeout(() => {
                         window.location.href = 'menu.html';
-                    }, 300);
+                    }, 500);
                 }
             } catch (err) {
-                console.error("系統崩潰:", err);
+                console.error("系統例外錯誤:", err);
                 msg.innerText = "系統發生未知錯誤";
                 alert("系統發生例外錯誤：" + err.message);
                 btn.disabled = false; 
