@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>查看照片紀錄</title>
+    <title>查看照片紀錄 (日期修正版)</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -46,7 +46,6 @@
 
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px dashed #eee; }
         
-        /* 日期標題區 (含 checkbox) */
         .date-title { font-size: 1em; font-weight: bold; color: #007aff; display: flex; align-items: center; gap: 8px; }
         .date-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #007aff; }
 
@@ -54,7 +53,7 @@
         .staff-input { border: 1px solid #ddd; background: #f9f9f9; padding: 2px 5px; border-radius: 4px; width: 60px; text-align: center; font-weight: bold; color: #333; font-size: 13px; }
         .staff-input:focus { border-color: #007aff; background: white; outline: none; }
 
-        /* --- 餐點網格 (小按鈕) --- */
+        /* --- 餐點網格 --- */
         .meal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
         .meal-box { 
             background: #f8f9fa; 
@@ -72,7 +71,6 @@
         
         .meal-title { font-size: 11px; color: #666; }
         
-        /* 狀態燈號 */
         .status-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; }
         .ok { background: #e6fffa; color: #00b894; border: 1px solid #b2f5ea; } 
         .no { background: #fff5f5; color: #fc8181; border: 1px solid #fed7d7; } 
@@ -83,10 +81,9 @@
         .fab-btn:active { transform: scale(0.9); }
         
         .fab-download { background: #34c759; }
-        .fab-delete { background: #ff3b30; display: none; } /* 預設隱藏，管理員才顯示 */
+        .fab-delete { background: #ff3b30; display: none; } 
         .fab-reload { background: #007aff; }
 
-        /* 全選按鈕 (浮動在左下) */
         .select-all-btn { position: fixed; bottom: 25px; left: 20px; background: white; color: #333; padding: 8px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.15); cursor: pointer; border: 1px solid #ddd; z-index: 900;}
 
         /* Modal */
@@ -158,6 +155,14 @@
     let isAdmin = false;
     let currentUserEmail = "";
 
+    // 🔥 關鍵修正：取得本地時間的 YYYY-MM-DD 字串，解決 UTC 時區問題
+    function getLocalStr(d) {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${dd}`;
+    }
+
     window.onload = function() {
         initDate(); 
         try {
@@ -181,23 +186,18 @@
         if(!data.session) { window.location.href = 'index.html'; return; }
         
         currentUserEmail = data.session.user.email;
-        await checkUserRole(); // 先確認權限
+        await checkUserRole(); 
         await fetchData();
         updateGlobalStats();
     }
 
-    // 權限檢查：只有 Admin 可以看到刪除鈕
     async function checkUserRole() {
         try {
             const { data } = await supabase.from('user_roles').select('role').eq('email', currentUserEmail).single();
             isAdmin = (data && data.role === 'admin');
-            
             const delBtn = document.getElementById('btn-delete');
-            if(isAdmin) {
-                delBtn.style.display = 'flex';
-            } else {
-                delBtn.style.display = 'none'; // 員工隱藏
-            }
+            if(isAdmin) delBtn.style.display = 'flex';
+            else delBtn.style.display = 'none';
         } catch(e) {
             console.warn("Role check error", e);
             isAdmin = false;
@@ -216,8 +216,9 @@
             const endDate = new Date(currentWeekStart);
             endDate.setDate(startDate.getDate() + 6); 
 
-            const sStr = startDate.toISOString().split('T')[0];
-            const eStr = endDate.toISOString().split('T')[0];
+            // 🔥 修正：使用 getLocalStr 產生日期，避免時區導致日期減一天
+            const sStr = getLocalStr(startDate);
+            const eStr = getLocalStr(endDate);
 
             document.getElementById('current-range-text').innerText = 
                 `${startDate.getMonth()+1}/${startDate.getDate()} - ${endDate.getMonth()+1}/${endDate.getDate()}`;
@@ -254,7 +255,9 @@
         for(let i=0; i<7; i++) {
             let d = new Date(startObj);
             d.setDate(d.getDate() + i);
-            const dateStr = d.toISOString().split('T')[0];
+            
+            // 🔥 修正：使用本地時間字串
+            const dateStr = getLocalStr(d);
             weekDates.push(dateStr);
 
             const isWeekend = (i === 0 || i === 6);
@@ -265,7 +268,6 @@
             const card = document.createElement('div');
             card.className = `day-card ${isWeekend ? 'weekend' : ''}`;
             
-            // 🔥 加入 Checkbox
             card.innerHTML = `
                 <div class="card-header">
                     <div class="date-title">
@@ -310,7 +312,6 @@
         const usedMB = (total * 0.5).toFixed(1);
         document.getElementById('storage-usage').innerText = `${usedMB} MB`;
         
-        // 剩餘天數計算
         const left = Math.floor((500 - total*0.5)/3);
         const alertEl = document.getElementById('storage-days');
         alertEl.innerText = `(剩約 ${left} 天)`;
@@ -327,7 +328,6 @@
         }
     }
 
-    // 🔥 全選/取消全選
     let isAllSelected = false;
     window.toggleSelectAll = function() {
         const checkboxes = document.querySelectorAll('.date-checkbox');
@@ -337,13 +337,11 @@
         btn.innerText = isAllSelected ? "☒ 取消全選" : "☑ 全選本週";
     }
 
-    // 🔥 下載選取
     window.handleDownloadSelected = async function() {
         const checkboxes = document.querySelectorAll('.date-checkbox:checked');
         if (checkboxes.length === 0) return alert("請先勾選日期");
 
         const selectedDates = Array.from(checkboxes).map(cb => cb.value);
-        // 過濾出選取日期的照片
         const targetRecords = currentRecords.filter(r => selectedDates.includes(r.record_date));
 
         if(targetRecords.length === 0) return alert("選取的日期沒有照片");
@@ -364,10 +362,8 @@
         showLoading(false);
     }
 
-    // 🔥 刪除選取 (含權限檢查)
     window.handleDeleteSelected = async function() {
         if (!isAdmin) return alert("權限不足：僅管理員可刪除");
-        
         const checkboxes = document.querySelectorAll('.date-checkbox:checked');
         if (checkboxes.length === 0) return alert("請先勾選日期");
 
@@ -378,21 +374,18 @@
             const selectedDates = Array.from(checkboxes).map(cb => cb.value);
             const targetRecords = currentRecords.filter(r => selectedDates.includes(r.record_date));
 
-            // 1. 刪除照片檔案
             const paths = targetRecords.map(r => r.photo_path);
             if (paths.length > 0) {
                 await supabase.storage.from('private_photos').remove(paths);
             }
-
-            // 2. 刪除資料庫紀錄
             const ids = targetRecords.map(r => r.id);
             if (ids.length > 0) {
                 await supabase.from('meal_records').delete().in('id', ids);
             }
 
             alert("刪除成功");
-            fetchData(); // 重新整理列表
-            updateGlobalStats(); // 更新容量
+            fetchData(); 
+            updateGlobalStats(); 
 
         } catch(e) {
             alert("刪除失敗: " + e.message);
