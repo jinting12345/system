@@ -4,12 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>班表上傳</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+        window.createClient = createClient; // 掛載到全域
+    </script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; background: #f8f9fa; max-width: 800px; margin: 0 auto; }
         .header { display: flex; justify-content: space-between; margin-bottom: 20px; }
-        .back-btn { text-decoration: none; color: #666; display: flex; align-items: center; }
+        .back-btn { text-decoration: none; color: #666; display: flex; align-items: center; font-weight: bold; }
         
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
         h3 { margin-top: 0; color: #333; }
@@ -83,10 +89,33 @@
     </div>
 
     <script>
-        function cleanString(str) { return str ? str.replace(/[^\x20-\x7E]/g, '').trim() : ''; }
+        // 全域錯誤處理
+        window.onerror = function(msg) {
+            alert("⚠️ 錯誤: " + msg);
+            return false;
+        };
+
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
-        const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
+        
+        let supabase = null;
+
+        // 🔥 修改 2: 初始化邏輯 (等待 ESM)
+        window.onload = function() {
+            setTimeout(() => {
+                try {
+                    if (window.createClient) {
+                        supabase = window.createClient(RAW_URL, RAW_KEY);
+                        console.log("Supabase Ready");
+                    } else {
+                        throw new Error("Supabase 元件載入失敗");
+                    }
+                } catch(e) {
+                    document.getElementById('status').innerHTML = `<span style="color:red">⚠️ 系統元件被阻擋，無法連線資料庫。<br>請檢查瀏覽器設定或網路。</span>`;
+                    document.getElementById('uploadBtn').disabled = true;
+                }
+            }, 500);
+        };
 
         function log(message) {
             const logBox = document.getElementById('log');
@@ -96,6 +125,8 @@
         }
 
         async function processExcel() {
+            if(!supabase) { alert("系統未連線"); return; }
+
             const fileInput = document.getElementById('fileInput');
             const targetMonthInput = document.getElementById('targetMonth');
             const status = document.getElementById('status');
@@ -172,16 +203,11 @@
                         const row = rows[r];
                         const staffName = row[0];
 
-                        // ============================================
-                        // 🔥 關鍵修改：過濾雜訊名字
-                        // ============================================
                         if (!staffName || typeof staffName !== 'string') continue;
                         let cleanName = staffName.trim();
-                        // 1. 忽略包含 "主管", "備註", "預計" 等關鍵字的行
+                        // 過濾邏輯
                         if (cleanName.includes('主管') || cleanName.includes('備註') || cleanName.includes('預計')) continue;
-                        // 2. 忽略長度超過 5 個字的名字 (這通常是整段句子)
                         if (cleanName.length > 5) continue;
-                        // 3. 忽略特殊符號開頭
                         if (cleanName.startsWith('*')) continue;
 
                         for (let c in colToDateMap) {
@@ -207,12 +233,11 @@
                     renderTable(allInsertData);
 
                     // ============================================
-                    // 🔥 關鍵修改：先刪除舊資料，再寫入
+                    // 資料庫操作
                     // ============================================
                     status.innerText = `🔄 正在清理 ${year}年${month}月 的舊資料...`;
                     
                     const startDate = `${year}-${month}-01`;
-                    // 計算月底，確保格式正確
                     const lastDay = new Date(year, month, 0).getDate();
                     const endDate = `${year}-${month}-${lastDay}`;
 
