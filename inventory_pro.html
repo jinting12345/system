@@ -3,8 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>營養品庫存管理系統</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <title>營養品庫存管理系統 (除錯版)</title>
+    
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+        window.createClient = createClient; // 掛載到全域
+    </script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -58,11 +63,10 @@
         .checkbox-cell { width: 30px; text-align: center; }
         .checkbox-cell input { width: 20px; height: 20px; }
 
-        /* 🔥 Badge Status (設定為 13px) */
         .badge { 
             padding: 4px 8px; 
             border-radius: 4px; 
-            font-size: 13px; /* ✅ 設定為 13px */
+            font-size: 13px;
             color: white; 
             font-weight: bold; 
             display: inline-block; 
@@ -74,14 +78,12 @@
         .bg-red { background: #dc3545; }
         .bg-cat { background: #8e8e93; color: white; margin-right: 4px; }
 
-        /* 品名編輯樣式 */
         .edit-input { border: none; background: transparent; font-weight: bold; font-size: 1em; color: #333; width: 100%; padding: 4px; margin: 0; box-sizing: border-box; }
         .is-editing .edit-input { border: 1px solid #007aff; background: #fff; padding: 5px; border-radius: 4px; }
         .edit-input:disabled { opacity: 1; -webkit-text-fill-color: #333; }
         
-        /* 🔥 分類編輯框 (設定為 13px) */
         .cat-input { 
-            font-size: 13px; /* ✅ 設定為 13px */
+            font-size: 13px;
             text-align: center; 
             color: #fff; 
             background: #8e8e93; 
@@ -110,12 +112,10 @@
         .drag-handle { cursor: grab; color: #aaa; padding: 5px; display: none; }
         .is-editing .drag-handle { display: inline-block; }
 
-        /* FAB */
         .fab-container { position: fixed; bottom: 20px; right: 20px; z-index: 900; display: none; flex-direction: column; gap: 15px; align-items: flex-end; }
         .fab-main { background: linear-gradient(135deg, #007aff, #005ecb); color: white; padding: 12px 20px; border-radius: 50px; font-weight: bold; font-size: 1em; box-shadow: 0 4px 15px rgba(0, 122, 255, 0.4); cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .fab-clear { background: #ff3b30; color: white; width: 40px; height: 40px; border-radius: 50%; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 10px rgba(255, 59, 48, 0.3); cursor: pointer; font-size: 1.1em; }
 
-        /* Modal */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: flex-end; z-index: 1000; }
         .modal-content { background: white; width: 100%; max-width: 500px; padding: 20px; border-radius: 15px 15px 0 0; max-height: 85vh; overflow-y: auto; display: flex; flex-direction: column; }
         @media (min-width: 769px) { .modal { align-items: center; } .modal-content { border-radius: 12px; width: 90%; } }
@@ -131,9 +131,21 @@
         .form-group { margin-bottom: 12px; }
         .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 14px; }
         .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 16px; }
+
+        /* 🔥 2. 加入讀取遮罩與錯誤樣式 */
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: flex; justify-content: center; align-items: center; z-index: 2000; flex-direction: column; text-align: center; }
+        #loading-text { font-size: 1.5em; color: #007aff; font-weight: bold; margin-bottom: 10px; }
+        #loading-subtext { font-size: 0.9em; color: #666; max-width: 80%; }
+        .error-state #loading-text { color: #dc3545; }
+        .error-state #loading-subtext { color: #333; }
     </style>
 </head>
 <body>
+
+<div id="loading-overlay">
+    <div id="loading-text">系統載入中...</div>
+    <div id="loading-subtext">正在連線資料庫，請稍候</div>
+</div>
 
 <div class="container">
     <div class="header">
@@ -263,14 +275,17 @@
 </div>
 
 <script>
-    // 初始化與安全檢查
+    // 🔥 3. 全域錯誤捕捉
+    window.onerror = function(message, source, lineno, colno, error) {
+        showLoading(true, "程式發生錯誤", message + " (Line: " + lineno + ")", true);
+        return false;
+    };
+
     function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
     const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     
-    if (typeof window.supabase === 'undefined') { alert("錯誤：無法載入 Supabase，請檢查網路。"); }
-    const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
-
+    let supabase = null;
     let rawInventory = [];
     let groupedInventory = [];
     let currentUser = '';
@@ -279,8 +294,29 @@
     let selectedItems = new Set();
     let isEditMode = false;
     let sortableInstance = null;
+    let loadingTimer = null;
 
-    (async () => {
+    // 🔥 4. 初始化 (等待 ESM 載入)
+    window.onload = async () => {
+        // 逾時偵測：10秒後若沒載完，顯示錯誤
+        loadingTimer = setTimeout(() => {
+            showLoading(true, "連線逾時", "資料庫回應過慢或網路不穩，請重新整理。", true);
+        }, 10000);
+
+        try {
+            // 檢查 Supabase 是否載入
+            if(window.createClient) {
+                supabase = window.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
+                await initApp();
+            } else {
+                throw new Error("Supabase 元件載入失敗 (被瀏覽器阻擋)");
+            }
+        } catch(e) {
+            showLoading(true, "初始化失敗", e.message, true);
+        }
+    };
+
+    async function initApp() {
         try {
             const { data: { session }, error } = await supabase.auth.getSession();
             if (error) throw error;
@@ -289,32 +325,56 @@
             const userInfoEl = document.getElementById('userInfo');
             if (userInfoEl) userInfoEl.innerText = currentUser;
             
-            // 🔥 卡住修復：即使權限檢查失敗，也繼續執行資料讀取
             await checkUserRole().catch(e => console.warn("Role check error:", e));
-            
             await loadInventory(); 
             await loadLogs();
             
+            // 成功載入，關閉遮罩
+            showLoading(false);
+            if(loadingTimer) clearTimeout(loadingTimer);
+
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('newBatchDate').value = today;
             document.getElementById('newItemDate').value = today;
+
         } catch (e) {
-            alert("系統啟動發生錯誤：" + e.message);
+            showLoading(true, "系統啟動錯誤", e.message, true);
             console.error(e);
         }
-    })();
+    }
+
+    // 顯示/隱藏遮罩的輔助函式
+    function showLoading(show, title, subtext, isError) {
+        const overlay = document.getElementById('loading-overlay');
+        const titleEl = document.getElementById('loading-text');
+        const subEl = document.getElementById('loading-subtext');
+        
+        if (show) {
+            overlay.style.display = 'flex';
+            if (title) titleEl.innerText = title;
+            if (subtext) subEl.innerText = subtext;
+            if (isError) overlay.classList.add('error-state');
+            else overlay.classList.remove('error-state');
+        } else {
+            overlay.style.display = 'none';
+        }
+    }
 
     async function checkUserRole() {
-        const { data } = await supabase.from('user_roles').select('role').eq('email', currentUser).single();
-        isAdmin = (data && data.role === 'admin');
-        
-        if (isAdmin) {
-            document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-flex');
-            const roleLabel = document.getElementById('roleLabel');
-            if(roleLabel) roleLabel.innerHTML = '<span class="badge bg-red">Admin</span>';
-        } else {
-            const roleLabel = document.getElementById('roleLabel');
-            if(roleLabel) roleLabel.innerHTML = '<span class="badge bg-green">User</span>';
+        try {
+            const { data } = await supabase.from('user_roles').select('role').eq('email', currentUser).single();
+            isAdmin = (data && data.role === 'admin');
+            
+            if (isAdmin) {
+                document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'inline-flex');
+                const roleLabel = document.getElementById('roleLabel');
+                if(roleLabel) roleLabel.innerHTML = '<span class="badge bg-red">Admin</span>';
+            } else {
+                const roleLabel = document.getElementById('roleLabel');
+                if(roleLabel) roleLabel.innerHTML = '<span class="badge bg-green">User</span>';
+            }
+        } catch(e) {
+            console.warn("Role check failed", e);
         }
     }
 
@@ -424,15 +484,9 @@
     }
 
     async function loadInventory() {
-        const tbody = document.getElementById('stockBody');
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px;">載入中...</td></tr>';
-        
         const { data, error } = await supabase.from('inventory').select('*').order('expiry_date', { ascending: true });
-        if(error) { 
-            // 🔥 卡住修復：若出錯，顯示錯誤訊息並清除 loading 狀態
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:red;">資料讀取失敗: ${error.message}</td></tr>`;
-            return; 
-        }
+        if(error) throw new Error("庫存讀取失敗: " + error.message);
+        
         rawInventory = data || [];
         groupData(rawInventory);
         updateCategoryFilter();
@@ -471,14 +525,12 @@
         tbody.innerHTML = '';
         
         const filtered = groupedInventory.filter(group => {
-            // 🔥 編號搜尋功能
             const matchText = group.name.toLowerCase().includes(searchText) || 
                               String(group.sortOrder).includes(searchText);
             const matchCat = filterCat === 'ALL' || group.category === filterCat;
             return matchText && matchCat;
         });
 
-        // 排序邏輯
         if (sortMode === 'EXPIRY') {
             filtered.sort((a, b) => {
                 const getNearestDate = (group) => {
@@ -715,7 +767,8 @@
     }
 
     async function loadLogs() {
-        const { data } = await supabase.from('inventory_logs').select('*').order('created_at', {ascending:false}).limit(50);
+        const { data, error } = await supabase.from('inventory_logs').select('*').order('created_at', {ascending:false}).limit(50);
+        if(error) { console.error("Logs error:", error); return; }
         const tbody = document.getElementById('logBody');
         tbody.innerHTML = '';
         if(data) {
