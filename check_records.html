@@ -3,306 +3,265 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>查看照片紀錄 (RWD優化版)</title>
+    <title>查看照片紀錄</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 
     <style>
-        /* --- 基礎設定 --- */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft JhengHei", sans-serif; background: #f0f2f5; margin: 0; padding: 10px; color: #333; -webkit-tap-highlight-color: transparent; }
-        .container { max-width: 1000px; margin: 0 auto; padding-bottom: 80px; }
+        /* --- 基礎與卡片樣式 --- */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", sans-serif; background: #f0f2f5; margin: 0; padding: 10px; color: #333; -webkit-tap-highlight-color: transparent; }
+        .container { max-width: 800px; margin: 0 auto; padding-bottom: 80px; }
         
-        /* --- 頂部資訊卡 (更緊湊) --- */
-        .info-card { background: linear-gradient(135deg, #007aff, #005ecb); color: white; padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,122,255,0.2); }
-        .info-item h3 { margin: 0 0 2px 0; font-size: 0.85em; opacity: 0.9; }
-        .info-number { font-size: 1.5em; font-weight: bold; }
-        .info-sub { font-size: 0.75em; color: #ffeb3b; }
+        .btn-back { background-color: #6c757d; text-decoration: none; padding: 8px 15px; border-radius: 6px; color: white; font-size: 14px; font-weight: bold; display: inline-block; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
-        /* --- 控制列 (更適合手機點擊) --- */
-        .controls { background: white; padding: 12px; border-radius: 12px; display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); align-items: center; }
-        select, input[type="month"] { padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 16px; flex: 1; min-width: 120px; background: white; -webkit-appearance: none; }
+        /* --- 週導航控制器 (新功能) --- */
+        .week-nav { background: white; padding: 10px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .nav-btn { background: #e3f2fd; color: #007aff; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
+        .nav-btn:active { background: #bbdefb; }
+        .date-range { text-align: center; font-weight: bold; color: #333; font-size: 0.95em; }
+        .date-range small { display: block; color: #666; font-size: 0.8em; margin-top: 2px; }
+
+        /* --- 統計資訊條 --- */
+        .stats-bar { display: flex; gap: 10px; margin-bottom: 15px; }
+        .stat-card { flex: 1; background: #fff; padding: 10px; border-radius: 8px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .stat-val { font-size: 1.2em; font-weight: bold; color: #007aff; }
+        .stat-label { font-size: 0.8em; color: #666; }
+
+        /* --- 卡片式列表 (手機優化) --- */
+        .record-list { display: flex; flex-direction: column; gap: 12px; }
+        .day-card { background: white; border-radius: 12px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #eee; }
         
-        .btn { border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; flex-shrink: 0; }
-        .btn-search { background-color: #007aff; min-width: 80px; }
-        .btn-back { background-color: #6c757d; text-decoration: none; padding: 6px 12px; border-radius: 6px; color: white; font-size: 13px; font-weight: bold; display: inline-block; margin-bottom: 10px; }
+        /* 週末樣式 */
+        .day-card.weekend { background-color: #fffbf0; border-color: #fcefdc; }
 
-        /* --- 懸浮操作按鈕 (FAB) --- */
+        .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed #eee; }
+        .date-title { font-size: 1.1em; font-weight: bold; color: #007aff; display: flex; align-items: center; gap: 8px; }
+        
+        .staff-row { display: flex; align-items: center; gap: 5px; font-size: 0.9em; color: #555; }
+        .staff-input { border: 1px solid #ddd; background: #f9f9f9; padding: 4px 8px; border-radius: 4px; width: 80px; text-align: center; font-weight: bold; color: #333; }
+        .staff-input:focus { border-color: #007aff; background: white; outline: none; }
+
+        /* 餐點網格 */
+        .meal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .meal-box { background: #f8f9fa; border-radius: 8px; padding: 8px 4px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
+        .meal-box:active { transform: scale(0.98); background: #eef; }
+        .meal-title { font-size: 12px; color: #666; font-weight: bold; }
+        
+        /* 狀態燈號 */
+        .status-dot { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+        .ok { background: #e6fffa; color: #00b894; border: 1px solid #b2f5ea; } /* 綠 */
+        .no { background: #fff5f5; color: #fc8181; border: 1px solid #fed7d7; } /* 紅 */
+
+        /* 懸浮按鈕 */
         .fab-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 900; }
-        .fab-btn { padding: 12px 20px; border-radius: 50px; font-weight: bold; color: white; box-shadow: 0 4px 15px rgba(0,0,0,0.2); border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 15px; }
+        .fab-btn { width: 50px; height: 50px; border-radius: 50%; border: none; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.2); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .fab-download { background: #34c759; }
-        .fab-delete { background: #ff3b30; display: none; }
+        .fab-reload { background: #007aff; }
 
-        /* --- 表格與卡片混合佈局 --- */
-        .table-container { width: 100%; border-collapse: separate; border-spacing: 0; }
-        
-        /* 桌面版顯示 Table Head */
-        thead { display: table-header-group; }
-        th { background: #e9ecef; color: #555; padding: 12px; font-size: 14px; text-align: center; border-bottom: 2px solid #ddd; }
-        
-        /* 通用行樣式 */
-        .record-row { background: white; transition: 0.2s; }
-        .record-row td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; vertical-align: middle; }
-
-        /* 狀態圖示 */
-        .status-icon { font-size: 1.4em; cursor: pointer; padding: 5px; }
-        .ok { color: #34c759; }
-        .no { color: #ff3b30; opacity: 0.3; }
-
-        /* 人員輸入框 */
-        .staff-input { border: 1px solid transparent; background: #f8f9fa; text-align: center; width: 100%; max-width: 100px; padding: 6px; border-radius: 6px; font-size: 15px; color: #333; font-weight: bold; }
-        .staff-input:focus { background: white; border-color: #007aff; outline: none; }
-
-        /* --- 📱 手機版關鍵樣式 (Card UI) --- */
-        @media (max-width: 768px) {
-            /* 隱藏傳統表頭 */
-            thead { display: none; }
-            
-            /* 將每一行變成一張卡片 */
-            .record-row { display: flex; flex-direction: column; background: white; margin-bottom: 12px; border-radius: 12px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border: 1px solid #f0f0f0; position: relative; }
-            
-            /* 選取框 (放在左上角) */
-            .record-row td:nth-child(1) { position: absolute; top: 12px; left: 12px; border: none; padding: 0; width: 30px; text-align: left; }
-            .record-row td:nth-child(1) input { width: 22px; height: 22px; }
-
-            /* 日期 (變成卡片標題) */
-            .record-row td:nth-child(2) { border: none; padding: 0 0 10px 40px; text-align: left; font-size: 1.1em; font-weight: bold; color: #007aff; border-bottom: 1px dashed #eee; margin-bottom: 10px; }
-            
-            /* 人員輸入 (佔滿一行) */
-            .record-row td:nth-child(3) { border: none; padding: 0 0 10px 0; text-align: left; display: flex; align-items: center; gap: 10px; }
-            .record-row td:nth-child(3)::before { content: "值班:"; font-size: 14px; color: #666; font-weight: bold; }
-            .staff-input { text-align: left; max-width: 100%; flex: 1; }
-
-            /* 餐別區塊 (網格排列) */
-            .meal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; border-top: 1px solid #f0f0f0; padding-top: 10px; }
-            .meal-item { text-align: center; background: #f8f9fa; border-radius: 8px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-            .meal-label { font-size: 12px; color: #666; font-weight: bold; margin-bottom: 2px; }
-            .sub-label { font-size: 10px; color: #999; }
-            
-            /* 隱藏原本的 TD，改用 JS 生成的 Grid */
-            .desktop-only { display: none !important; }
-        }
-
-        /* 讀取遮罩 */
-        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: flex; justify-content: center; align-items: center; z-index: 2000; flex-direction: column; }
-        #loading-text { font-size: 1.2em; font-weight: bold; color: #007aff; margin-bottom: 10px; }
-        
         /* 圖片 Modal */
-        .modal { display: none; position: fixed; z-index: 3000; padding-top: 50px; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.9); }
-        .modal-content { margin: auto; display: block; max-width: 90%; max-height: 80vh; border-radius: 8px; }
-        .close-modal { position: absolute; top: 20px; right: 20px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; }
-        .modal-caption { text-align: center; color: #ccc; padding: 15px; font-size: 16px; }
+        .modal { display: none; position: fixed; z-index: 3000; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
+        .modal img { max-width: 95%; max-height: 85vh; border-radius: 8px; }
+        .close-modal { position: absolute; top: 20px; right: 20px; color: white; font-size: 40px; cursor: pointer; }
+        .modal-caption { position: absolute; bottom: 30px; color: white; text-align: center; width: 100%; }
+
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); display: flex; justify-content: center; align-items: center; z-index: 2000; flex-direction: column; }
     </style>
 </head>
 <body>
 
 <div id="loading-overlay">
-    <div id="loading-text">資料讀取中...</div>
-    <div style="font-size:0.8em; color:#666;">正在連線 Supabase</div>
+    <div style="color:#007aff; font-weight:bold; font-size:1.2em;">載入中...</div>
 </div>
 
-<div id="imageModal" class="modal" onclick="closeImageModal()">
+<div id="imageModal" class="modal" onclick="this.style.display='none'">
     <span class="close-modal">&times;</span>
-    <img class="modal-content" id="modalImg">
+    <img id="modalImg">
     <div id="caption" class="modal-caption"></div>
 </div>
 
 <div class="container">
     <a href="menu.html" class="btn-back">⬅ 回選單</a>
-    
-    <div class="info-card">
-        <div>
-            <div class="info-item"><h3>雲端空間</h3></div>
-            <span id="storage-usage" class="info-number">-- MB</span>
-            <div class="info-sub" id="storage-days">計算中...</div>
+
+    <div class="week-nav">
+        <button class="nav-btn" onclick="changeWeek(-7)">❮ 上週</button>
+        <div class="date-range">
+            <span id="current-range-text">載入中...</span>
+            <small id="current-week-num"></small>
         </div>
-        <div style="text-align:right;">
-            <h3>總照片</h3>
-            <span id="total-photos" class="info-number">0</span>
+        <button class="nav-btn" onclick="changeWeek(7)">下週 ❯</button>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-val" id="week-count">0</div>
+            <div class="stat-label">本週照片</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-val" id="total-count">0</div>
+            <div class="stat-label">總累積張數</div>
         </div>
     </div>
 
-    <div class="controls">
-        <input type="month" id="month-picker">
-        <button class="btn btn-search" onclick="fetchData()">🔍 查詢</button>
-        </div>
-
-    <table class="table-container">
-        <thead>
-            <tr>
-                <th width="40"><input type="checkbox" onchange="toggleAll(this)"></th>
-                <th width="100">日期</th>
-                <th width="120">值班人員</th>
-                <th>早餐(病)</th>
-                <th>早餐(護)</th>
-                <th>午餐(病)</th>
-                <th>晚餐(病)</th>
-            </tr>
-        </thead>
-        <tbody id="record-body">
-            </tbody>
-    </table>
+    <div id="record-list" class="record-list"></div>
 </div>
 
 <div class="fab-container">
-    <button class="fab-btn fab-download" onclick="handleDownloadOnly()">📥 下載選取</button>
-    <button id="btn-delete" class="fab-btn fab-delete" onclick="handleDeleteOnly()">🗑️ 刪除</button>
+    <button class="fab-btn fab-reload" onclick="fetchData()" title="重新整理">↻</button>
+    <button class="fab-btn fab-download" onclick="handleDownloadWeek()" title="下載本週">📥</button>
 </div>
 
 <script type="module">
     import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-    
+
     const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     let supabase = null;
+    let currentWeekStart = new Date(); // 當前選到的週的起始日 (週日)
     let currentRecords = [];
-    let isAdmin = false;
-    let currentUserEmail = "";
+    let weekDates = []; // 存本週的7天日期字串
 
     window.onload = function() {
-        const now = new Date();
-        document.getElementById('month-picker').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-        
+        initDate(); // 1. 先把日期對齊到本週日
         try {
             supabase = createClient(RAW_URL, RAW_KEY);
             initApp();
         } catch(e) {
-            showLoading(false);
-            alert("初始化失敗: " + e.message);
+            alert("初始化錯誤: " + e.message);
         }
     };
 
-    async function initApp() {
-        try {
-            const { data, error } = await supabase.auth.getSession();
-            if(!data.session) { window.location.href = 'index.html'; return; }
-            currentUserEmail = data.session.user.email;
-            
-            await checkUserRole();
-            await fetchData();
-            updateGlobalStats();
-        } catch(e) {
-            showLoading(false);
-            alert("登入驗證錯誤: " + e.message);
-        }
+    function initDate() {
+        // 將日期設定為「本週日」作為起點
+        const now = new Date();
+        const day = now.getDay(); // 0(週日) - 6(週六)
+        const diff = now.getDate() - day; 
+        currentWeekStart = new Date(now.setDate(diff));
+        currentWeekStart.setHours(0,0,0,0);
     }
 
-    async function checkUserRole() {
-        const { data } = await supabase.from('user_roles').select('role').eq('email', currentUserEmail).single();
-        isAdmin = (data && data.role === 'admin');
-        if(isAdmin) document.getElementById('btn-delete').style.display = 'flex';
+    async function initApp() {
+        const { data } = await supabase.auth.getSession();
+        if(!data.session) { window.location.href = 'index.html'; return; }
+        
+        await fetchData();
+        updateGlobalStats();
+    }
+
+    // 切換週次 (-7 或 +7)
+    window.changeWeek = function(days) {
+        currentWeekStart.setDate(currentWeekStart.getDate() + days);
+        fetchData();
     }
 
     window.fetchData = async function() {
         showLoading(true);
         try {
-            const monthVal = document.getElementById('month-picker').value; 
-            const [year, month] = monthVal.split('-');
-            const startDate = `${year}-${month}-01`;
-            const lastDay = new Date(year, month, 0).getDate(); 
-            const endDate = `${year}-${month}-${lastDay}`;
+            // 1. 計算本週起訖日
+            const startDate = new Date(currentWeekStart);
+            const endDate = new Date(currentWeekStart);
+            endDate.setDate(startDate.getDate() + 6); // 加6天變週六
 
-            const { data: scheduleData } = await supabase.from('duty_roster').select('date, staff_name').gte('date', startDate).lte('date', endDate);
-            const { data: recordData } = await supabase.from('meal_records').select('*').gte('record_date', startDate).lte('record_date', endDate);
+            // 格式化 YYYY-MM-DD
+            const sStr = startDate.toISOString().split('T')[0];
+            const eStr = endDate.toISOString().split('T')[0];
+
+            // 更新 UI 顯示日期範圍
+            document.getElementById('current-range-text').innerText = 
+                `${startDate.getMonth()+1}/${startDate.getDate()} - ${endDate.getMonth()+1}/${endDate.getDate()}`;
+            document.getElementById('current-week-num').innerText = `${startDate.getFullYear()}年`;
+
+            // 2. 抓取這7天的資料
+            const { data: scheduleData } = await supabase.from('duty_roster')
+                .select('date, staff_name')
+                .gte('date', sStr).lte('date', eStr);
+
+            const { data: recordData } = await supabase.from('meal_records')
+                .select('*')
+                .gte('record_date', sStr).lte('record_date', eStr);
 
             currentRecords = recordData || [];
-            renderTable(year, month, scheduleData || [], currentRecords);
+            
+            // 3. 渲染畫面
+            renderWeek(startDate, scheduleData || [], currentRecords);
+            
+            // 更新本週統計
+            document.getElementById('week-count').innerText = currentRecords.length;
+
         } catch(e) {
-            alert("讀取失敗: " + e.message);
+            console.error(e);
+            alert("讀取失敗");
         } finally {
             showLoading(false);
         }
     }
 
-    function renderTable(year, month, schedules, records) {
-        const tbody = document.getElementById('record-body');
-        tbody.innerHTML = '';
-        const daysInMonth = new Date(year, month, 0).getDate();
-        const weekDays = ['(日)', '(一)', '(二)', '(三)', '(四)', '(五)', '(六)'];
+    function renderWeek(startObj, schedules, records) {
+        const container = document.getElementById('record-list');
+        container.innerHTML = '';
+        weekDates = []; // 重置
 
-        for (let day = 1; day <= daysInMonth; day++) {
-            const dateStr = `${year}-${month}-${String(day).padStart(2, '0')}`;
-            const dateObj = new Date(dateStr);
-            const weekStr = weekDays[dateObj.getDay()];
-            const isWeekend = (dateObj.getDay() === 0 || dateObj.getDay() === 6);
+        const weekStr = ['日', '一', '二', '三', '四', '五', '六'];
+
+        for(let i=0; i<7; i++) {
+            // 產生每一天的日期物件
+            let d = new Date(startObj);
+            d.setDate(d.getDate() + i);
+            const dateStr = d.toISOString().split('T')[0]; // YYYY-MM-DD
+            weekDates.push(dateStr);
+
+            const isWeekend = (i === 0 || i === 6);
+            const dayLabel = `${d.getMonth()+1}/${d.getDate()} (${weekStr[i]})`;
             
-            const staff = [...new Set(schedules.filter(s => s.date === dateStr).map(s => s.staff_name))].join(' / ');
-            const dayRecords = records.filter(r => r.record_date === dateStr);
+            // 找值班人員
+            const staff = schedules.find(s => s.date === dateStr)?.staff_name || '';
+            
+            // 找照片紀錄
+            const dayRecs = records.filter(r => r.record_date === dateStr);
 
-            // 產生狀態 HTML 的輔助函式
-            const getStatus = (meal, target, label) => {
-                const rec = dayRecords.find(r => r.meal_type === meal && r.target_type === target);
-                const icon = rec ? '✅' : '❌';
-                const cls = rec ? 'ok' : 'no';
-                const clickAction = rec ? `onclick="viewPhoto('${rec.photo_path}', '${dateStr} ${label}')"` : '';
-                
-                // 桌面版回傳 TD
-                const desktopHtml = `<td class="desktop-only"><span class="status-icon ${cls}" ${clickAction}>${icon}</span></td>`;
-                
-                // 手機版回傳 Grid Item
-                const mobileHtml = `
-                    <div class="meal-item" ${clickAction}>
-                        <div class="meal-label">${label}</div>
-                        <div class="status-icon ${cls}" style="font-size:1.2em;">${icon}</div>
+            // 產生 HTML
+            const card = document.createElement('div');
+            card.className = `day-card ${isWeekend ? 'weekend' : ''}`;
+            
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="date-title">${dayLabel}</div>
+                    <div class="staff-row">
+                        值班: <input type="text" class="staff-input" value="${staff}" 
+                        onchange="updateStaff('${dateStr}', this.value)" placeholder="未排班">
                     </div>
-                `;
-                return { desktop: desktopHtml, mobile: mobileHtml };
-            };
-
-            const b_p = getStatus('breakfast', 'patient', '早-病');
-            const b_n = getStatus('breakfast', 'nursing', '早-護');
-            const l_p = getStatus('lunch', 'patient', '午-病');
-            const d_p = getStatus('dinner', 'patient', '晚-病');
-
-            const row = document.createElement('tr');
-            row.className = 'record-row';
-            if(isWeekend) row.style.backgroundColor = '#fffbf0'; // 週末淡黃底
-
-            row.innerHTML = `
-                <td><input type="checkbox" class="date-checkbox" value="${dateStr}"></td>
-                <td>${month}/${day} <small>${weekStr}</small></td>
-                <td><input type="text" class="staff-input" value="${staff}" placeholder="排班" onchange="updateStaff('${dateStr}', this.value)"></td>
+                </div>
                 
-                ${b_p.desktop} ${b_n.desktop} ${l_p.desktop} ${d_p.desktop}
-
-                <td class="mobile-meal-container" style="display:none; width:100%; border:none; padding:0;">
-                   <div class="meal-grid">
-                       ${b_p.mobile} ${b_n.mobile} ${l_p.mobile} ${d_p.mobile}
-                   </div>
-                </td>
+                <div class="meal-grid">
+                    ${renderMealBox(dayRecs, dateStr, 'breakfast', 'patient', '早-病')}
+                    ${renderMealBox(dayRecs, dateStr, 'breakfast', 'nursing', '早-護')}
+                    ${renderMealBox(dayRecs, dateStr, 'lunch', 'patient', '午-病')}
+                    ${renderMealBox(dayRecs, dateStr, 'dinner', 'patient', '晚-病')}
+                </div>
             `;
-            
-            // 手機版 hack：把桌面版的 td 隱藏，顯示 mobile-meal-container
-            // 但為了保持結構簡單，我們用 CSS media query 控制顯示
-            // 這裡把手機版區塊直接插在最後，CSS 會處理排版
-            const mobileGrid = document.createElement('div');
-            mobileGrid.className = 'meal-grid';
-            mobileGrid.innerHTML = b_p.mobile + b_n.mobile + l_p.mobile + d_p.mobile;
-            
-            // 由於 CSS 使用 Flexbox 排版，我們直接把這個 Grid 放在最後面，透過 CSS 顯示/隱藏
-            const mobileTd = document.createElement('td');
-            mobileTd.className = 'mobile-only-cell'; // 用於 CSS 控制
-            mobileTd.style.cssText = "display:none; width:100%; padding:0; border:none;";
-            mobileTd.appendChild(mobileGrid);
-            row.appendChild(mobileTd);
-
-            tbody.appendChild(row);
+            container.appendChild(card);
         }
-        
-        // 修正手機版顯示邏輯 (因為 tr 是 flex col，我們把最後一個 td 設為顯示)
-        const style = document.createElement('style');
-        style.innerHTML = `@media (max-width: 768px) { .mobile-only-cell { display: block !important; } }`;
-        document.head.appendChild(style);
+    }
+
+    function renderMealBox(dayRecs, dateStr, meal, target, label) {
+        const rec = dayRecs.find(r => r.meal_type === meal && r.target_type === target);
+        const hasPhoto = !!rec;
+        const iconClass = hasPhoto ? 'ok' : 'no';
+        const iconText = hasPhoto ? '✔' : '✖';
+        const action = hasPhoto ? `onclick="window.viewPhoto('${rec.photo_path}', '${dateStr} ${label}')"` : '';
+
+        return `
+            <div class="meal-box" ${action}>
+                <div class="status-dot ${iconClass}">${iconText}</div>
+                <div class="meal-title">${label}</div>
+            </div>
+        `;
     }
 
     async function updateGlobalStats() {
+        // 只算總數，讓使用者有個底
         const { count } = await supabase.from('meal_records').select('*', { count: 'exact', head: true });
-        const total = count || 0;
-        document.getElementById('total-photos').innerText = total;
-        document.getElementById('storage-usage').innerText = (total * 0.5).toFixed(1) + " MB";
-        
-        const left = Math.floor((500 - total*0.5)/3);
-        document.getElementById('storage-days').innerText = `約剩 ${left} 天`;
+        document.getElementById('total-count').innerText = count || 0;
     }
 
     window.updateStaff = async function(date, val) {
@@ -316,31 +275,24 @@
         }
     }
 
-    window.handleDownloadOnly = async function() {
-        const cbs = document.querySelectorAll('.date-checkbox:checked');
-        if(cbs.length === 0) return alert("請勾選日期");
+    window.handleDownloadWeek = async function() {
+        if(currentRecords.length === 0) return alert("本週沒有照片可下載");
         
         showLoading(true);
         const zip = new JSZip();
-        const dates = Array.from(cbs).map(c=>c.value);
-        const targets = currentRecords.filter(r => dates.includes(r.record_date));
         
-        if(targets.length===0) { showLoading(false); return alert("無照片"); }
-
-        await Promise.all(targets.map(async r => {
+        await Promise.all(currentRecords.map(async r => {
             const { data } = await supabase.storage.from('private_photos').download(r.photo_path);
-            if(data) zip.file(`${r.record_date}_${r.meal_type}_${r.target_type}.jpg`, data);
+            if(data) {
+                // 檔名：日期_餐別_對象.jpg
+                const fname = `${r.record_date}_${translate(r.meal_type)}_${translate(r.target_type)}.jpg`;
+                zip.file(fname, data);
+            }
         }));
         
         const content = await zip.generateAsync({type:"blob"});
-        saveAs(content, "photos.zip");
+        saveAs(content, `照片備份_${weekDates[0]}_to_${weekDates[6]}.zip`);
         showLoading(false);
-    }
-
-    window.handleDeleteOnly = async function() {
-        if(!confirm("確定刪除？")) return;
-        // ... (省略詳細刪除邏輯以節省篇幅，邏輯同前一版)
-        alert("功能同前，請確認權限後操作");
     }
 
     window.viewPhoto = async function(path, cap) {
@@ -348,13 +300,15 @@
         const { data } = await supabase.storage.from('private_photos').createSignedUrl(path, 60);
         document.getElementById('modalImg').src = data.signedUrl;
         document.getElementById('caption').innerText = cap;
-        document.getElementById('imageModal').style.display = 'block';
+        document.getElementById('imageModal').style.display = 'flex';
         showLoading(false);
     }
 
-    window.toggleAll = (src) => document.querySelectorAll('.date-checkbox').forEach(c => c.checked = src.checked);
-    window.closeImageModal = () => document.getElementById('imageModal').style.display = 'none';
     function showLoading(s) { document.getElementById('loading-overlay').style.display = s ? 'flex' : 'none'; }
+    function translate(e) { const m={'breakfast':'早','lunch':'午','dinner':'晚','patient':'病','nursing':'護'}; return m[e]||e; }
+    
+    // 掛載全域讓 HTML onclick 使用
+    window.viewPhoto = viewPhoto;
 </script>
 </body>
 </html>
