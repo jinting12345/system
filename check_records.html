@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>查看照片紀錄 (日期修正版)</title>
+    <title>查看照片紀錄 (可搜尋版)</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -32,12 +32,60 @@
         .info-val { font-weight: bold; color: #333; }
         .info-alert { color: #f59e0b; font-weight:bold; margin-left: 5px; }
 
-        /* --- 週導航控制器 --- */
-        .week-nav { background: white; padding: 8px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
-        .nav-btn { background: #e3f2fd; color: #007aff; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; }
-        .nav-btn:active { background: #bbdefb; }
-        .date-range { text-align: center; font-weight: bold; color: #333; font-size: 0.95em; }
-        .date-range small { display: inline-block; color: #888; font-size: 0.8em; margin-left: 5px; font-weight: normal;}
+        /* --- 🔥 修改：週導航控制器 (加入搜尋) --- */
+        .week-nav { 
+            background: white; 
+            padding: 5px; 
+            border-radius: 10px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            margin-bottom: 12px; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05); 
+        }
+        
+        .nav-btn { 
+            background: #f0f2f5; 
+            color: #007aff; 
+            border: none; 
+            width: 40px; 
+            height: 40px; 
+            border-radius: 8px; 
+            font-weight: bold; 
+            cursor: pointer; 
+            font-size: 18px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+        }
+        .nav-btn:active { background: #dce4f0; }
+
+        /* 隱藏的日期輸入框，覆蓋在文字上面 */
+        .date-picker-wrapper {
+            position: relative;
+            flex: 1;
+            text-align: center;
+            height: 40px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            cursor: pointer;
+        }
+        
+        /* 讓 input 透明並蓋在文字上，這樣點擊文字就能觸發日曆 */
+        .hidden-date-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .date-range { font-weight: bold; color: #333; font-size: 1em; pointer-events: none; /* 讓點擊穿透到 input */ }
+        .date-range small { display: inline-block; color: #007aff; font-size: 0.8em; margin-left: 5px; font-weight: normal;}
 
         /* --- 卡片式列表 --- */
         .record-list { display: flex; flex-direction: column; gap: 10px; }
@@ -123,12 +171,18 @@
     </div>
 
     <div class="week-nav">
-        <button class="nav-btn" onclick="changeWeek(-7)">❮ 上週</button>
-        <div class="date-range">
-            <span id="current-range-text">--/-- - --/--</span>
-            <small id="current-week-num"></small>
+        <button class="nav-btn" onclick="changeWeek(-7)">❮</button>
+        
+        <div class="date-picker-wrapper">
+            <input type="date" id="date-jumper" class="hidden-date-input" onchange="jumpToDate(this.value)">
+            
+            <div class="date-range">
+                <span id="current-range-text">--/-- - --/--</span>
+                <small id="current-week-num">📅 點此搜尋</small>
+            </div>
         </div>
-        <button class="nav-btn" onclick="changeWeek(7)">下週 ❯</button>
+        
+        <button class="nav-btn" onclick="changeWeek(7)">❯</button>
     </div>
 
     <div id="record-list" class="record-list"></div>
@@ -155,7 +209,7 @@
     let isAdmin = false;
     let currentUserEmail = "";
 
-    // 🔥 關鍵修正：取得本地時間的 YYYY-MM-DD 字串，解決 UTC 時區問題
+    // 解決時區問題的日期格式化
     function getLocalStr(d) {
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -209,6 +263,20 @@
         fetchData();
     }
 
+    // 🔥 新增：跳轉指定日期 (點擊日曆後觸發)
+    window.jumpToDate = function(val) {
+        if(!val) return;
+        const target = new Date(val);
+        const day = target.getDay(); 
+        const diff = target.getDate() - day; 
+        
+        // 設定為該週的週日
+        currentWeekStart = new Date(target.setDate(diff));
+        currentWeekStart.setHours(0,0,0,0);
+        
+        fetchData();
+    }
+
     window.fetchData = async function() {
         showLoading(true);
         try {
@@ -216,13 +284,14 @@
             const endDate = new Date(currentWeekStart);
             endDate.setDate(startDate.getDate() + 6); 
 
-            // 🔥 修正：使用 getLocalStr 產生日期，避免時區導致日期減一天
             const sStr = getLocalStr(startDate);
             const eStr = getLocalStr(endDate);
 
             document.getElementById('current-range-text').innerText = 
                 `${startDate.getMonth()+1}/${startDate.getDate()} - ${endDate.getMonth()+1}/${endDate.getDate()}`;
-            document.getElementById('current-week-num').innerText = `(${startDate.getFullYear()})`;
+            
+            // 更新年份顯示
+            document.getElementById('current-week-num').innerText = `(${startDate.getFullYear()} 📅)`;
 
             const { data: scheduleData } = await supabase.from('duty_roster')
                 .select('date, staff_name')
@@ -256,7 +325,6 @@
             let d = new Date(startObj);
             d.setDate(d.getDate() + i);
             
-            // 🔥 修正：使用本地時間字串
             const dateStr = getLocalStr(d);
             weekDates.push(dateStr);
 
