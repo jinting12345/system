@@ -11,11 +11,11 @@
     <style>
         /* --- 基礎設定 --- */
         body { font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", sans-serif; background: #f2f4f8; margin: 0; padding: 10px; color: #333; -webkit-tap-highlight-color: transparent; }
-        .container { max-width: 800px; margin: 0 auto; padding-bottom: 80px; }
+        .container { max-width: 800px; margin: 0 auto; padding-bottom: 90px; }
         
         .btn-back { background-color: #6c757d; text-decoration: none; padding: 6px 12px; border-radius: 4px; color: white; font-size: 13px; font-weight: bold; display: inline-block; margin-bottom: 10px; }
 
-        /* --- 🔥 修改 1: 迷你資訊列 (取代原本的大卡片) --- */
+        /* --- 迷你資訊列 --- */
         .info-bar { 
             background: white; 
             padding: 8px 15px; 
@@ -30,7 +30,7 @@
         }
         .info-label { color: #666; margin-right: 5px; }
         .info-val { font-weight: bold; color: #333; }
-        .info-alert { color: #f59e0b; font-size: 12px; margin-left: 5px; }
+        .info-alert { color: #f59e0b; font-weight:bold; margin-left: 5px; }
 
         /* --- 週導航控制器 --- */
         .week-nav { background: white; padding: 8px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
@@ -41,17 +41,20 @@
 
         /* --- 卡片式列表 --- */
         .record-list { display: flex; flex-direction: column; gap: 10px; }
-        .day-card { background: white; border-radius: 10px; padding: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #eee; }
+        .day-card { background: white; border-radius: 10px; padding: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); border: 1px solid #eee; position: relative; }
         .day-card.weekend { background-color: #fffbf0; border-color: #faeacc; }
 
         .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 5px; border-bottom: 1px dashed #eee; }
-        .date-title { font-size: 1em; font-weight: bold; color: #007aff; display: flex; align-items: center; gap: 5px; }
         
+        /* 日期標題區 (含 checkbox) */
+        .date-title { font-size: 1em; font-weight: bold; color: #007aff; display: flex; align-items: center; gap: 8px; }
+        .date-checkbox { width: 18px; height: 18px; cursor: pointer; accent-color: #007aff; }
+
         .staff-row { display: flex; align-items: center; gap: 3px; font-size: 0.85em; color: #555; }
         .staff-input { border: 1px solid #ddd; background: #f9f9f9; padding: 2px 5px; border-radius: 4px; width: 60px; text-align: center; font-weight: bold; color: #333; font-size: 13px; }
         .staff-input:focus { border-color: #007aff; background: white; outline: none; }
 
-        /* --- 🔥 修改 2: 更緊湊的餐點網格 (一排4個) --- */
+        /* --- 餐點網格 (小按鈕) --- */
         .meal-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
         .meal-box { 
             background: #f8f9fa; 
@@ -67,21 +70,26 @@
         }
         .meal-box:active { transform: scale(0.95); background: #eef; }
         
-        /* 字體縮小 */
         .meal-title { font-size: 11px; color: #666; }
         
-        /* 狀態燈號縮小 */
+        /* 狀態燈號 */
         .status-dot { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; }
-        .ok { background: #e6fffa; color: #00b894; border: 1px solid #b2f5ea; } /* 綠 */
-        .no { background: #fff5f5; color: #fc8181; border: 1px solid #fed7d7; } /* 紅 */
+        .ok { background: #e6fffa; color: #00b894; border: 1px solid #b2f5ea; } 
+        .no { background: #fff5f5; color: #fc8181; border: 1px solid #fed7d7; } 
 
         /* 懸浮按鈕 */
-        .fab-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 900; }
-        .fab-btn { width: 45px; height: 45px; border-radius: 50%; border: none; color: white; box-shadow: 0 3px 10px rgba(0,0,0,0.2); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .fab-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 12px; z-index: 900; }
+        .fab-btn { width: 48px; height: 48px; border-radius: 50%; border: none; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.3); font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .fab-btn:active { transform: scale(0.9); }
+        
         .fab-download { background: #34c759; }
+        .fab-delete { background: #ff3b30; display: none; } /* 預設隱藏，管理員才顯示 */
         .fab-reload { background: #007aff; }
 
-        /* 圖片 Modal */
+        /* 全選按鈕 (浮動在左下) */
+        .select-all-btn { position: fixed; bottom: 25px; left: 20px; background: white; color: #333; padding: 8px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.15); cursor: pointer; border: 1px solid #ddd; z-index: 900;}
+
+        /* Modal */
         .modal { display: none; position: fixed; z-index: 3000; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); justify-content: center; align-items: center; }
         .modal img { max-width: 95%; max-height: 85vh; border-radius: 8px; }
         .close-modal { position: absolute; top: 20px; right: 20px; color: white; font-size: 40px; cursor: pointer; }
@@ -111,8 +119,8 @@
             <span class="info-val" id="week-count">0</span>
         </div>
         <div>
-            <span class="info-label">雲端空間:</span>
-            <span class="info-val" id="storage-usage">計算中...</span>
+            <span class="info-label">空間:</span>
+            <span class="info-val" id="storage-usage">...</span>
             <span class="info-alert" id="storage-days"></span>
         </div>
     </div>
@@ -129,9 +137,12 @@
     <div id="record-list" class="record-list"></div>
 </div>
 
+<button class="select-all-btn" onclick="toggleSelectAll()">☑ 全選本週</button>
+
 <div class="fab-container">
     <button class="fab-btn fab-reload" onclick="fetchData()" title="重新整理">↻</button>
-    <button class="fab-btn fab-download" onclick="handleDownloadWeek()" title="下載本週">📥</button>
+    <button class="fab-btn fab-download" onclick="handleDownloadSelected()" title="下載選取">📥</button>
+    <button id="btn-delete" class="fab-btn fab-delete" onclick="handleDeleteSelected()" title="刪除選取">🗑️</button>
 </div>
 
 <script type="module">
@@ -140,9 +151,12 @@
     const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     let supabase = null;
+    
     let currentWeekStart = new Date(); 
     let currentRecords = [];
     let weekDates = []; 
+    let isAdmin = false;
+    let currentUserEmail = "";
 
     window.onload = function() {
         initDate(); 
@@ -166,8 +180,28 @@
         const { data } = await supabase.auth.getSession();
         if(!data.session) { window.location.href = 'index.html'; return; }
         
+        currentUserEmail = data.session.user.email;
+        await checkUserRole(); // 先確認權限
         await fetchData();
         updateGlobalStats();
+    }
+
+    // 權限檢查：只有 Admin 可以看到刪除鈕
+    async function checkUserRole() {
+        try {
+            const { data } = await supabase.from('user_roles').select('role').eq('email', currentUserEmail).single();
+            isAdmin = (data && data.role === 'admin');
+            
+            const delBtn = document.getElementById('btn-delete');
+            if(isAdmin) {
+                delBtn.style.display = 'flex';
+            } else {
+                delBtn.style.display = 'none'; // 員工隱藏
+            }
+        } catch(e) {
+            console.warn("Role check error", e);
+            isAdmin = false;
+        }
     }
 
     window.changeWeek = function(days) {
@@ -231,10 +265,13 @@
             const card = document.createElement('div');
             card.className = `day-card ${isWeekend ? 'weekend' : ''}`;
             
-            // 🔥 修改：一排 4 個的按鈕佈局
+            // 🔥 加入 Checkbox
             card.innerHTML = `
                 <div class="card-header">
-                    <div class="date-title">${dayLabel}</div>
+                    <div class="date-title">
+                        <input type="checkbox" class="date-checkbox" value="${dateStr}">
+                        ${dayLabel}
+                    </div>
                     <div class="staff-row">
                         值班 <input type="text" class="staff-input" value="${staff}" 
                         onchange="updateStaff('${dateStr}', this.value)">
@@ -256,7 +293,7 @@
         const rec = dayRecs.find(r => r.meal_type === meal && r.target_type === target);
         const hasPhoto = !!rec;
         const iconClass = hasPhoto ? 'ok' : 'no';
-        const iconText = hasPhoto ? '✔' : '✖'; // 改成簡單的符號
+        const iconText = hasPhoto ? '✔' : '✖';
         const action = hasPhoto ? `onclick="window.viewPhoto('${rec.photo_path}', '${dateStr} ${label}')"` : '';
 
         return `
@@ -273,10 +310,10 @@
         const usedMB = (total * 0.5).toFixed(1);
         document.getElementById('storage-usage').innerText = `${usedMB} MB`;
         
+        // 剩餘天數計算
         const left = Math.floor((500 - total*0.5)/3);
         const alertEl = document.getElementById('storage-days');
-        if(left < 30) alertEl.innerText = `(剩 ${left} 天)`;
-        else alertEl.innerText = '';
+        alertEl.innerText = `(剩約 ${left} 天)`;
     }
 
     window.updateStaff = async function(date, val) {
@@ -290,12 +327,31 @@
         }
     }
 
-    window.handleDownloadWeek = async function() {
-        if(currentRecords.length === 0) return alert("本週沒有照片可下載");
+    // 🔥 全選/取消全選
+    let isAllSelected = false;
+    window.toggleSelectAll = function() {
+        const checkboxes = document.querySelectorAll('.date-checkbox');
+        isAllSelected = !isAllSelected;
+        checkboxes.forEach(cb => cb.checked = isAllSelected);
+        const btn = document.querySelector('.select-all-btn');
+        btn.innerText = isAllSelected ? "☒ 取消全選" : "☑ 全選本週";
+    }
+
+    // 🔥 下載選取
+    window.handleDownloadSelected = async function() {
+        const checkboxes = document.querySelectorAll('.date-checkbox:checked');
+        if (checkboxes.length === 0) return alert("請先勾選日期");
+
+        const selectedDates = Array.from(checkboxes).map(cb => cb.value);
+        // 過濾出選取日期的照片
+        const targetRecords = currentRecords.filter(r => selectedDates.includes(r.record_date));
+
+        if(targetRecords.length === 0) return alert("選取的日期沒有照片");
+
         showLoading(true);
         const zip = new JSZip();
         
-        await Promise.all(currentRecords.map(async r => {
+        await Promise.all(targetRecords.map(async r => {
             const { data } = await supabase.storage.from('private_photos').download(r.photo_path);
             if(data) {
                 const fname = `${r.record_date}_${translate(r.meal_type)}_${translate(r.target_type)}.jpg`;
@@ -304,8 +360,45 @@
         }));
         
         const content = await zip.generateAsync({type:"blob"});
-        saveAs(content, `照片備份_${weekDates[0]}_to_${weekDates[6]}.zip`);
+        saveAs(content, `照片備份_${selectedDates[0]}.zip`);
         showLoading(false);
+    }
+
+    // 🔥 刪除選取 (含權限檢查)
+    window.handleDeleteSelected = async function() {
+        if (!isAdmin) return alert("權限不足：僅管理員可刪除");
+        
+        const checkboxes = document.querySelectorAll('.date-checkbox:checked');
+        if (checkboxes.length === 0) return alert("請先勾選日期");
+
+        if(!confirm(`⚠️ 確定要刪除選取日期的 ${checkboxes.length} 天資料嗎？\n照片將無法復原！`)) return;
+
+        showLoading(true);
+        try {
+            const selectedDates = Array.from(checkboxes).map(cb => cb.value);
+            const targetRecords = currentRecords.filter(r => selectedDates.includes(r.record_date));
+
+            // 1. 刪除照片檔案
+            const paths = targetRecords.map(r => r.photo_path);
+            if (paths.length > 0) {
+                await supabase.storage.from('private_photos').remove(paths);
+            }
+
+            // 2. 刪除資料庫紀錄
+            const ids = targetRecords.map(r => r.id);
+            if (ids.length > 0) {
+                await supabase.from('meal_records').delete().in('id', ids);
+            }
+
+            alert("刪除成功");
+            fetchData(); // 重新整理列表
+            updateGlobalStats(); // 更新容量
+
+        } catch(e) {
+            alert("刪除失敗: " + e.message);
+        } finally {
+            showLoading(false);
+        }
     }
 
     window.viewPhoto = async function(path, cap) {
