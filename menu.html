@@ -4,29 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>系統選單</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+        window.createClient = createClient; // 掛載到全域讓下方 script 使用
+    </script>
+
     <style>
         body { font-family: "Microsoft JhengHei", sans-serif; background: #f8f9fa; margin: 0; padding: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding: 0 10px; }
-        h2 { margin: 0; color: #333; font-weight: bold; }
+        h2 { margin: 0; color: #333; font-weight: bold; font-size: 1.2em; }
+        
         .logout-btn { background: #dc3545; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 14px; transition: 0.3s; }
         .logout-btn:hover { background: #bb2d3b; }
         
-        .container { max-width: 800px; margin: 0 auto; }
+        .container { max-width: 800px; margin: 0 auto; padding-bottom: 50px; }
         .group-title { color: #555; border-bottom: 2px solid #ddd; padding-bottom: 8px; margin: 30px 0 15px 0; font-weight: bold; font-size: 1.1em; }
         
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
         .card { background: white; padding: 20px; border-radius: 8px; text-align: center; text-decoration: none; color: #333; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 110px; }
         .card:hover { transform: translateY(-3px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid #1a73e8; color: #1a73e8; }
-        .icon { font-size: 36px; margin-bottom: 10px; }
-        .card.disabled { background: #eee; color: #aaa; cursor: not-allowed; pointer-events: none; box-shadow: none; }
+        .icon { font-size: 32px; margin-bottom: 10px; }
+        .card span:last-child { font-weight: bold; font-size: 0.95em; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <h2>🏥 義大營養科資訊系統</h2>
-            <button onclick="handleLogout()" class="logout-btn">登出</button>
+            <button id="logoutBtn" class="logout-btn">登出</button>
         </div>
 
         <div class="group-title">🍱 膳管組</div>
@@ -62,8 +68,8 @@
         <div class="group-title">🎓 教研組</div>
         <div class="grid">
             <a href="ocr.html" class="card">
-                <span class="icon"></span>
-                <span>敬請期待</span>
+                <span class="icon">🧠</span>
+                <span>OCR 辨識 (測試)</span>
             </a>
         </div>
 
@@ -81,27 +87,56 @@
         </div>
     </div>
 
-    <script>
-        function cleanString(str) { return str.replace(/[^\x20-\x7E]/g, '').trim(); }
-        
-        // Supabase 設定
+    <script type="module">
         const RAW_URL = 'https://oipnjnwootorawargsxe.supabase.co';
         const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
-        const supabase = window.supabase.createClient(cleanString(RAW_URL), cleanString(RAW_KEY));
-
-        async function handleLogout() {
-            const { error } = await supabase.auth.signOut();
-            if (error) console.error('登出錯誤:', error);
-            window.location.href = 'index.html';
-        }
         
-        // 登入檢查
-        (async () => {
+        let supabase = null;
+
+        // 初始化
+        window.onload = async () => {
+            // 等待上面的 module 載入 createClient
+            setTimeout(initSystem, 100);
+        };
+
+        function initSystem() {
+            try {
+                if(window.createClient) {
+                    supabase = window.createClient(RAW_URL, RAW_KEY);
+                    checkLogin();
+                    
+                    // 綁定登出按鈕
+                    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+                } else {
+                    throw new Error("系統元件未載入");
+                }
+            } catch(e) {
+                // 如果元件被擋，按登出直接跳轉回首頁，不讓使用者卡死
+                document.getElementById('logoutBtn').onclick = function() {
+                    window.location.href = 'index.html';
+                };
+                alert("⚠️ 系統部分功能被阻擋，可能影響操作。\n(登出功能已強制啟用)");
+            }
+        }
+
+        async function checkLogin() {
             const { data } = await supabase.auth.getSession();
             if(!data.session) {
                 window.location.href = 'index.html';
             }
-        })();
+        }
+
+        async function handleLogout() {
+            if(supabase) {
+                try {
+                    await supabase.auth.signOut();
+                } catch(e) {
+                    console.warn("登出連線錯誤 (忽略):", e);
+                }
+            }
+            // 無論 Supabase 是否成功回應，都強制跳轉回登入頁
+            window.location.href = 'index.html';
+        }
     </script>
 </body>
 </html>
