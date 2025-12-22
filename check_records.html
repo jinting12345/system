@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>查看照片紀錄 (智慧雙模式)</title>
+    <title>查看照片紀錄 (最終版)</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
@@ -15,13 +15,14 @@
         
         .btn-back { background-color: #6c757d; text-decoration: none; padding: 8px 15px; border-radius: 6px; color: white; font-size: 14px; font-weight: bold; display: inline-flex; align-items: center; margin-bottom: 15px; }
 
-        /* --- 資訊列 --- */
+        /* --- 資訊列 (已更新顯示寬度) --- */
         .info-bar { 
             background: white; padding: 12px 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #007aff;
         }
-        .info-label { color: #666; margin-right: 5px; font-size: 14px; }
-        .info-val { font-weight: bold; color: #333; font-size: 16px; }
-        .info-alert { color: #f59e0b; font-weight:bold; margin-left: 5px; font-size: 14px; }
+        .info-group { display: flex; flex-direction: column; } /* 手機版若太擠可換行，目前保持單行 */
+        .info-label { color: #666; margin-right: 5px; font-size: 13px; }
+        .info-val { font-weight: bold; color: #333; font-size: 15px; }
+        .info-alert { color: #f59e0b; font-weight:bold; margin-left: 5px; font-size: 13px; }
 
         /* =========================================
            🖥️ 電腦版樣式 (表格模式)
@@ -47,7 +48,7 @@
         /* =========================================
            📱 手機版樣式 (卡片模式)
            ========================================= */
-        .mobile-only { display: none; } /* 預設隱藏 */
+        .mobile-only { display: none; } 
 
         .week-nav { background: white; padding: 5px; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .nav-btn { background: #f0f2f5; color: #007aff; border: none; width: 45px; height: 45px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 20px; display: flex; align-items: center; justify-content: center; }
@@ -84,12 +85,15 @@
 
         .select-all-btn { position: fixed; bottom: 35px; left: 20px; background: white; color: #333; padding: 10px 20px; border-radius: 30px; font-size: 14px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.2); cursor: pointer; border: 1px solid #ddd; z-index: 900; display: none;}
 
-        /* RWD 斷點：768px 以下視為手機 */
         @media (max-width: 768px) {
             .desktop-only { display: none !important; }
             .mobile-only { display: block !important; }
             .container { padding: 10px; }
-            .select-all-btn { display: block; } /* 手機才顯示全選按鈕 */
+            .select-all-btn { display: block; }
+            
+            /* 手機版資訊列稍微調整 */
+            .info-bar { flex-direction: row; font-size: 12px; padding: 10px 15px; }
+            .info-val { font-size: 13px; }
         }
 
         /* Modal */
@@ -123,7 +127,7 @@
         </div>
         <div>
             <span class="info-label">空間:</span>
-            <span class="info-val" id="storage-usage">...</span>
+            <span class="info-val" id="storage-usage">... / 500 MB</span>
             <span class="info-alert" id="storage-days"></span>
         </div>
     </div>
@@ -183,16 +187,16 @@
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     let supabase = null;
     
-    // 狀態變數
-    let currentMode = 'desktop'; // 'desktop' or 'mobile'
-    let currentWeekStart = new Date(); // 手機版用
-    let currentMonthStr = ''; // 電腦版用 (YYYY-MM)
+    // 狀態
+    let currentMode = 'desktop'; 
+    let currentWeekStart = new Date(); 
+    let currentMonthStr = ''; 
     
     let currentRecords = [];
     let isAdmin = false;
     let currentUserEmail = "";
 
-    // 解決時區問題
+    // 本地時間格式化 (解決時區問題)
     function getLocalStr(d) {
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -201,10 +205,9 @@
     }
 
     window.onload = function() {
-        // 1. 偵測裝置
         if (window.innerWidth <= 768) {
             currentMode = 'mobile';
-            initWeekDate(); // 對齊到本週日
+            initWeekDate(); 
         } else {
             currentMode = 'desktop';
             const now = new Date();
@@ -212,7 +215,6 @@
             document.getElementById('month-picker').value = currentMonthStr;
         }
 
-        // 2. 初始化 Supabase
         try {
             supabase = createClient(RAW_URL, RAW_KEY);
             initApp();
@@ -235,7 +237,6 @@
         currentUserEmail = data.session.user.email;
         await checkUserRole();
         
-        // 根據模式載入不同資料
         if(currentMode === 'mobile') await fetchWeekData();
         else await fetchMonthData();
         
@@ -249,7 +250,7 @@
         if(isAdmin) delBtn.style.display = 'flex';
     }
 
-    // ================= 手機版邏輯 (週) =================
+    // ================= 手機版 (週) =================
     window.changeWeek = function(days) {
         currentWeekStart.setDate(currentWeekStart.getDate() + days);
         fetchWeekData();
@@ -293,10 +294,8 @@
             d.setDate(d.getDate() + i);
             const dateStr = getLocalStr(d);
             
-            // 資料
             const staff = currentRecords.schedules.find(s=>s.date===dateStr)?.staff_name || '';
             const dayRecs = currentRecords.records.filter(r=>r.record_date===dateStr);
-            
             const isWeekend = (i===0 || i===6);
             
             const card = document.createElement('div');
@@ -331,7 +330,7 @@
         return `<div class="meal-box" ${act}><div class="status-dot ${cls}">${txt}</div><div class="meal-title">${label}</div></div>`;
     }
 
-    // ================= 電腦版邏輯 (月) =================
+    // ================= 電腦版 (月) =================
     window.fetchMonthData = async function() {
         const val = document.getElementById('month-picker').value;
         if(!val) return;
@@ -390,11 +389,15 @@
         document.getElementById('total-count').innerText = (rData||[]).length + " (本區間)";
     }
 
+    // 🔥 修改：顯示格式 update
     async function updateGlobalStats() {
         const { count } = await supabase.from('meal_records').select('*', { count: 'exact', head: true });
         const total = count || 0;
         const usedMB = (total * 0.5).toFixed(1);
-        document.getElementById('storage-usage').innerText = `${usedMB} MB`;
+        
+        // 修改這裡：加上 "/ 500 MB"
+        document.getElementById('storage-usage').innerText = `${usedMB} MB / 500 MB`;
+        
         const left = Math.floor((500 - total*0.5)/3);
         const alertEl = document.getElementById('storage-days');
         alertEl.innerText = `(剩約 ${left} 天)`;
