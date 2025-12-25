@@ -5,80 +5,97 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>長照紀錄自動生成系統</title>
     
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script type="module">
+        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+        window.createClient = createClient;
+    </script>
     
     <script src="https://unpkg.com/pizzip@3.1.4/dist/pizzip.min.js"></script>
     <script src="https://unpkg.com/docxtemplater@3.37.11/build/docxtemplater.js"></script>
     <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
 
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; background-color: #f5f7fa; color: #333; position: relative; }
-        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background-color: #f5f7fa; color: #333; }
+        .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
         
-        /* 標題與回選單按鈕 */
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; }
-        .header h1 { color: #2c3e50; margin: 0; font-size: 1.8em; }
-        .back-btn { text-decoration: none; background: #6c757d; color: white; padding: 8px 15px; border-radius: 5px; font-size: 0.9em; transition: 0.3s; }
-        .back-btn:hover { background: #5a6268; }
-
+        /* 頂部導航 */
+        .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .back-link { text-decoration: none; color: #666; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; gap: 5px; cursor: pointer; transition: color 0.2s; }
+        .back-link:hover { color: #333; }
+        .logout-btn { background-color: #dc3545; color: white; border: none; padding: 8px 20px; border-radius: 4px; font-size: 1em; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+        
+        .header { text-align: center; margin-bottom: 40px; border-bottom: 2px solid #edf2f7; padding-bottom: 20px; }
+        .header h1 { color: #2c3e50; margin: 0; font-size: 2em; }
+        
         .step-section { margin-bottom: 30px; }
-        .step-title { font-weight: bold; font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; border-left: 5px solid #3498db; padding-left: 10px; }
-        .upload-box { border: 2px dashed #cbd5e0; border-radius: 8px; padding: 20px; text-align: center; background: #f8fafc; transition: 0.3s; }
+        .step-header { display: flex; align-items: center; margin-bottom: 15px; }
+        .step-number { background: #3498db; color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 10px; }
+        .step-title { font-weight: bold; font-size: 1.2em; color: #2c3e50; }
+
+        .upload-box { border: 2px dashed #cbd5e0; border-radius: 8px; padding: 30px; text-align: center; background: #f8fafc; transition: 0.3s; }
         .upload-box:hover { border-color: #3498db; background: #ebf8ff; }
-        
+
         .grid-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; background: #fff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
         .form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #4a5568; font-size: 0.9em; }
         .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 14px; box-sizing: border-box; background-color: #fdfdfd; }
         .col-span-2 { grid-column: span 2; }
         .col-span-3 { grid-column: span 3; }
-        .highlight-label { color: #e53e3e; }
-        
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; color: white; margin-top: 10px; transition: 0.2s; }
+
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; color: white; margin-top: 15px; }
         .btn-parse { background-color: #3498db; }
         .btn-generate { background-color: #27ae60; }
-        .btn-manual { background-color: #e67e22; }
-        .btn:hover { opacity: 0.9; }
-        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+        .btn:disabled { background-color: #a0aec0; cursor: not-allowed; }
 
-        /* 模式切換區 */
-        .mode-switch { display: flex; gap: 20px; margin-bottom: 15px; padding-left: 10px; }
-        .mode-switch label { cursor: pointer; display: flex; align-items: center; gap: 5px; font-weight: bold; color: #555; }
-        .mode-switch input[type="radio"] { width: auto; margin: 0; }
-        
-        .auto-box { border-color: #27ae60; background: #f0fdf4; border-style: dashed; }
-        .manual-box { border-color: #e67e22; background: #fffaf0; border-style: dashed; display: none; }
+        /* 登入視窗 */
+        #login-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; }
+        .login-box { background: white; padding: 30px; border-radius: 10px; width: 300px; text-align: center; }
 
-        /* 狀態標籤 */
-        .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 0.85em; margin-left: 10px; }
-        .status-loading { background: #fff3cd; color: #856404; }
-        .status-ready { background: #d4edda; color: #155724; }
-        .status-error { background: #f8d7da; color: #721c24; }
-
-        /* 底部管理區 */
-        .admin-section { margin-top: 50px; border-top: 1px solid #ddd; padding-top: 20px; text-align: center; font-size: 0.9em; color: #777; }
-        .admin-btn { background: none; border: 1px solid #aaa; padding: 5px 10px; border-radius: 4px; cursor: pointer; color: #555; }
-        
+        /* 讀取遮罩 */
         #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: none; justify-content: center; align-items: center; z-index: 10000; flex-direction: column; }
+        #loading-text { font-size: 1.5em; color: #3498db; font-weight: bold; margin-bottom: 10px; }
     </style>
 </head>
 <body>
 
 <div id="loading-overlay">
-    <div style="font-size: 1.5em; color: #3498db; font-weight: bold;">處理中...</div>
+    <div id="loading-text">處理中...</div>
+    <div style="color:#666">請稍候</div>
+</div>
+
+<div id="login-modal">
+    <div class="login-box">
+        <h2>系統登入</h2>
+        <p>請先登入以取得安全範本</p>
+        <div style="margin-bottom: 15px;">
+            <input type="email" id="email" placeholder="Email" style="width: 100%; padding: 8px; margin-bottom: 10px;">
+            <input type="password" id="password" placeholder="密碼" style="width: 100%; padding: 8px;">
+        </div>
+        <button onclick="handleLogin()" class="btn btn-parse">登入</button>
+        <p id="login-msg" style="color: red; margin-top: 10px; font-size: 0.9em;"></p>
+    </div>
 </div>
 
 <div class="container">
+    <div class="top-nav">
+        <a href="menu.html" class="back-link"><span>⬅</span> 回選單</a>
+        <button onclick="handleLogout()" class="logout-btn">登出</button>
+    </div>
+
     <div class="header">
         <h1>長照紀錄紙本登打 (自動生成)</h1>
-        <a href="menu.html" class="back-btn">⬅ 回選單</a>
+        <p id="user-status" style="font-size: 0.8em; color: #27ae60;"></p>
     </div>
 
     <div class="step-section">
-        <div class="step-title">步驟 1: 上傳評估量表 PDF</div>
+        <div class="step-header">
+            <div class="step-number">1</div>
+            <div class="step-title">上傳評估量表 PDF</div>
+        </div>
         <div class="upload-box">
             <input type="file" id="pdf_upload" accept="application/pdf" />
             <button class="btn btn-parse" onclick="parsePDF()">🔍 解析資料</button>
@@ -86,7 +103,10 @@
     </div>
 
     <div class="step-section">
-        <div class="step-title">步驟 2: 確認資料 (供紀錄表使用)</div>
+        <div class="step-header">
+            <div class="step-number">2</div>
+            <div class="step-title">確認資料 (供紀錄表使用)</div>
+        </div>
         <div class="grid-form">
             <div class="form-group"><label>個案姓名</label><input type="text" id="user_name"></div>
             <div class="form-group"><label>身分證字號</label><input type="text" id="user_id"></div>
@@ -123,158 +143,168 @@
     </div>
 
     <div class="step-section">
-        <div class="step-title">步驟 3: 生成長照紀錄 Word</div>
+        <div class="step-header">
+            <div class="step-number">3</div>
+            <div class="step-title">生成長照紀錄 Word</div>
+        </div>
         
-        <div class="mode-switch">
-            <label>
-                <input type="radio" name="mode" value="auto" checked onchange="toggleMode()">
-                🔒 自動模式 (使用系統範本)
+        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+            <label style="flex: 1; cursor: pointer;">
+                <input type="radio" name="template_mode" value="auto" checked onchange="switchTemplateMode()">
+                <span style="margin-left: 8px; font-weight: bold;">🔒 自動模式 (使用系統範本)</span>
             </label>
-            <label>
-                <input type="radio" name="mode" value="manual" onchange="toggleMode()">
-                📤 手動上傳模式
+            <label style="flex: 1; cursor: pointer;">
+                <input type="radio" name="template_mode" value="manual" onchange="switchTemplateMode()">
+                <span style="margin-left: 8px; font-weight: bold;">📤 手動上傳模式</span>
             </label>
         </div>
 
-        <div id="auto-section" class="upload-box auto-box">
-            <p>
-                狀態：<span id="templateStatus" class="status-badge status-loading">連接中...</span>
-            </p>
-            <p id="templateMsg" style="font-size: 0.9em; color: #666;">正在從雲端載入模板...</p>
-            <button id="btnGenerate" class="btn btn-generate" onclick="generateRecordAuto()" disabled>📄 下載紀錄表 (自動模式)</button>
+        <div id="auto_mode_box" class="upload-box" style="border-color: #27ae60; background: #f0fdf4;">
+            <p style="color: #27ae60; font-weight: bold;">✅ 將使用系統內建的紀錄範本</p>
+            <button class="btn btn-generate" onclick="generateRecordAuto()">📄 下載紀錄表 (自動模式)</button>
         </div>
 
-        <div id="manual-section" class="upload-box manual-box">
-            <p>請上傳您電腦中的 Word 範本 (.docx)</p>
+        <div id="manual_mode_box" class="upload-box" style="display: none; border-color: #3498db; background: #ebf8ff;">
+            <p style="color: #3498db; font-weight: bold;">請選擇 Word 紀錄範本 (.docx)</p>
             <input type="file" id="manual_template_upload" accept=".docx" />
-            <button class="btn btn-manual" onclick="generateRecordManual()">📄 下載紀錄表 (手動模式)</button>
+            <button class="btn btn-generate" style="background-color: #3498db;" onclick="generateRecordManual()">📄 下載紀錄表 (手動模式)</button>
         </div>
-    </div>
-
-    <div class="admin-section">
-        <details>
-            <summary>⚙️ 模板管理 (若需更新系統預設模板請點此)</summary>
-            <div style="margin-top: 15px; padding: 15px; border: 1px dashed #ccc; background: #fafafa;">
-                <p>上傳新的 <b>Word 模板 (.docx)</b> 將會覆蓋雲端上的舊檔案。</p>
-                <input type="file" id="new_template_upload" accept=".docx">
-                <button class="admin-btn" style="background: #6c757d; color: white;" onclick="uploadNewTemplate()">⬆️ 上傳並更新模板</button>
-            </div>
-        </details>
     </div>
 </div>
 
 <script>
-    // 設定 Supabase
     const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
-    
-    // 🌟 修正點 1: 根據你的截圖，檔案在 templates 資料夾內
+    const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
+    const SUPABASE_KEY = RAW_KEY.trim();
+
+    // 🌟 這裡修改為您的正確路徑
     const BUCKET_NAME = 'system_files'; 
-    const TEMPLATE_PATH = 'templates/record_template.docx'; // 包含資料夾路徑
+    const TEMPLATE_PATH = 'templates/record_template.docx';
 
     let supabase = null;
-    let globalTemplateBuffer = null; // 儲存下載下來的模板
-
-    function showLoading(show) { document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none'; }
 
     // 初始化
-    window.onload = async () => {
-        try {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            await loadTemplate(); // 自動載入模板
-        } catch(e) {
-            console.error(e);
-            updateStatus('error', '系統初始化失敗');
-        }
+    window.onload = function() {
+        showLoading(true, "系統初始化中...");
+        setTimeout(() => {
+            try {
+                if (window.createClient) {
+                    supabase = window.createClient(SUPABASE_URL, SUPABASE_KEY);
+                    checkSession();
+                } else {
+                    throw new Error("Supabase 元件載入失敗");
+                }
+            } catch (e) {
+                showLoading(false);
+                alert("初始化失敗：" + e.message);
+            }
+            showLoading(false);
+        }, 500);
     };
 
-    // 切換模式顯示
-    window.toggleMode = function() {
-        const mode = document.querySelector('input[name="mode"]:checked').value;
-        if(mode === 'auto') {
-            document.getElementById('auto-section').style.display = 'block';
-            document.getElementById('manual-section').style.display = 'none';
-        } else {
-            document.getElementById('auto-section').style.display = 'none';
-            document.getElementById('manual-section').style.display = 'block';
-        }
+    function showLoading(show, text) {
+        document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+        if(text) document.getElementById('loading-text').innerText = text;
     }
 
-    // ===========================
-    // 雲端模板功能
-    // ===========================
+    // ============================================
+    // Auth 邏輯 (完全仿照合約系統)
+    // ============================================
+    async function handleLogin() {
+        if (!supabase) return;
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const msg = document.getElementById('login-msg');
 
-    // 1. 從 Supabase 下載模板
-    async function loadTemplate() {
-        updateStatus('loading', '正在下載模板...');
-        try {
-            const { data, error } = await supabase.storage
-                .from(BUCKET_NAME)
-                .download(TEMPLATE_PATH); // 使用修正後的路徑
-
-            if (error) {
-                console.error("Supabase Error:", error);
-                if(error.message.includes("Object not found")) {
-                    updateStatus('error', `找不到模板 (路徑: ${TEMPLATE_PATH})`);
-                } else {
-                    updateStatus('error', '連線錯誤: ' + error.message);
-                }
-            } else {
-                globalTemplateBuffer = await data.arrayBuffer();
-                updateStatus('ready', '系統模板已準備就緒');
-                document.getElementById('btnGenerate').disabled = false;
-                document.getElementById('templateMsg').innerText = "✅ 雲端模板已載入，可直接生成。";
-            }
-        } catch (err) {
-            console.error(err);
-            updateStatus('error', '載入失敗: ' + err.message);
-        }
-    }
-
-    // 2. 上傳新模板到 Supabase (更新系統模板)
-    async function uploadNewTemplate() {
-        const fileInput = document.getElementById('new_template_upload');
-        if (fileInput.files.length === 0) { alert("請先選擇一個 .docx 檔案"); return; }
+        if(!email || !password) { msg.innerText = "請輸入帳號密碼"; return; }
         
-        const file = fileInput.files[0];
-        showLoading(true);
+        msg.innerText = "驗證中...";
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
+        if (error) {
+            msg.innerText = "登入失敗: " + error.message;
+        } else {
+            document.getElementById('login-modal').style.display = 'none';
+            document.getElementById('user-status').innerText = `目前使用者: ${data.user.email}`;
+        }
+    }
+
+    async function handleLogout() {
+        if (!supabase) return;
+        if(confirm("確定要登出嗎？")) {
+            await supabase.auth.signOut();
+            location.reload(); 
+        }
+    }
+
+    async function checkSession() {
+        if (!supabase) return;
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+            document.getElementById('login-modal').style.display = 'none';
+            document.getElementById('user-status').innerText = `目前使用者: ${data.session.user.email}`;
+        } else {
+            document.getElementById('login-modal').style.display = 'flex';
+        }
+    }
+
+    // ============================================
+    // 模板下載與生成邏輯
+    // ============================================
+    function switchTemplateMode() {
+        const mode = document.querySelector('input[name="template_mode"]:checked').value;
+        document.getElementById('auto_mode_box').style.display = mode === 'auto' ? 'block' : 'none';
+        document.getElementById('manual_mode_box').style.display = mode === 'manual' ? 'block' : 'none';
+    }
+
+    async function generateRecordAuto() {
+        showLoading(true, "下載範本中...");
         try {
-            // 上傳並覆蓋 (upsert: true)
+            // 按下按鈕才下載，絕對不會卡住
             const { data, error } = await supabase.storage
                 .from(BUCKET_NAME)
-                .upload(TEMPLATE_PATH, file, { // 使用修正後的路徑
-                    cacheControl: '3600',
-                    upsert: true
-                });
+                .download(TEMPLATE_PATH);
 
             if (error) throw error;
-
-            alert("✅ 模板更新成功！");
-            fileInput.value = ''; // 清空
-            await loadTemplate(); // 重新載入
-        } catch (err) {
-            alert("❌ 上傳失敗: " + err.message);
-        } finally {
+            
+            const arrayBuffer = await data.arrayBuffer();
+            showLoading(true, "生成紀錄表中...");
+            await createWord(arrayBuffer, "長照紀錄_自動");
             showLoading(false);
+        } catch (error) {
+            showLoading(false);
+            console.error(error);
+            alert("自動模式失敗: " + error.message + "\n請確認 system_files/templates/record_template.docx 是否存在");
         }
     }
 
-    function updateStatus(type, msg) {
-        const el = document.getElementById('templateStatus');
-        el.innerText = msg;
-        el.className = 'status-badge';
-        if (type === 'loading') el.classList.add('status-loading');
-        if (type === 'ready') el.classList.add('status-ready');
-        if (type === 'error') el.classList.add('status-error');
+    async function generateRecordManual() {
+        const fileInput = document.getElementById('manual_template_upload');
+        if (fileInput.files.length === 0) { alert("請先選擇 Word 檔案"); return; }
+        
+        showLoading(true, "處理中...");
+        try {
+            const arrayBuffer = await fileInput.files[0].arrayBuffer();
+            await createWord(arrayBuffer, "長照紀錄_手動");
+            showLoading(false);
+        } catch(e) {
+            showLoading(false);
+            alert("讀取檔案失敗: " + e.message);
+        }
     }
 
-    // ===========================
-    // 資料收集與 Word 生成
-    // ===========================
+    // ============================================
+    // 共用 Word 生成函數
+    // ============================================
+    async function createWord(buffer, prefix) {
+        const zip = new PizZip(buffer);
+        const doc = new window.docxtemplater(zip, { 
+            paragraphLoop: true, 
+            linebreaks: true,
+            nullGetter: () => ""
+        });
 
-    function getTemplateData() {
-        return {
+        const templateData = {
             user_name: document.getElementById('user_name').value,
             user_id: document.getElementById('user_id').value,
             payment_display: document.getElementById('payment_display').value,
@@ -293,60 +323,21 @@
             service_goal: document.getElementById('service_goal').value,
             today: new Date().toLocaleDateString('zh-TW')
         };
+
+        doc.setData(templateData);
+        doc.render();
+
+        const blob = doc.getZip().generate({
+            type: "blob",
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        });
+
+        saveAs(blob, `${prefix}_${templateData.user_name}.docx`);
     }
 
-    // 自動模式生成
-    async function generateRecordAuto() {
-        if (!globalTemplateBuffer) { alert("模板尚未載入"); return; }
-        await createWord(globalTemplateBuffer, "長照紀錄_自動");
-    }
-
-    // 手動模式生成
-    async function generateRecordManual() {
-        const fileInput = document.getElementById('manual_template_upload');
-        if (fileInput.files.length === 0) { alert("請先選擇 Word 檔案"); return; }
-        
-        try {
-            const arrayBuffer = await fileInput.files[0].arrayBuffer();
-            await createWord(arrayBuffer, "長照紀錄_手動");
-        } catch(e) {
-            alert("讀取檔案失敗: " + e.message);
-        }
-    }
-
-    // 通用 Word 產出函式
-    async function createWord(buffer, prefix) {
-        showLoading(true);
-        try {
-            const zip = new PizZip(buffer);
-            const doc = new window.docxtemplater(zip, { 
-                paragraphLoop: true, 
-                linebreaks: true,
-                nullGetter: () => ""
-            });
-
-            const templateData = getTemplateData();
-            doc.setData(templateData);
-            doc.render();
-
-            const blob = doc.getZip().generate({
-                type: "blob",
-                mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            });
-
-            saveAs(blob, `${prefix}_${templateData.user_name}.docx`);
-        } catch (error) {
-            alert("Word 生成錯誤: " + JSON.stringify(error));
-            console.error(error);
-        } finally {
-            showLoading(false);
-        }
-    }
-
-    // ===========================
-    // V14 解析邏輯 (保留原樣)
-    // ===========================
-    
+    // ============================================
+    // PDF 解析邏輯 (保留您強大的 V14 紀錄版解析)
+    // ============================================
     function cleanTextDeep(text) {
         return text.replace(/[\n\r]/g, "") 
                    .replace(/※/g, "")
@@ -366,7 +357,7 @@
         const fileInput = document.getElementById('pdf_upload');
         if (fileInput.files.length === 0) { alert("請先選擇 PDF!"); return; }
 
-        showLoading(true);
+        showLoading(true, "解析 PDF 中...");
 
         try {
             const file = fileInput.files[0];
