@@ -3,420 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照合約生成系統 (強力引擎 v3.11 版)</title>
-    
-    <script type="module">
-        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-        window.createClient = createClient;
-    </script>
-    
-    <script src="https://unpkg.com/pizzip@3.1.4/dist/pizzip.min.js"></script>
-    <script src="https://unpkg.com/docxtemplater@3.37.11/build/docxtemplater.js"></script>
-    <script src="https://unpkg.com/file-saver@2.0.5/dist/FileSaver.min.js"></script>
-    
+    <title>系統診斷模式 (v3.11 核心)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script>
-        // 設定 Worker
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     </script>
-
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; background-color: #f5f7fa; color: #333; }
-        .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; }
-        .header h1 { color: #2c3e50; margin: 0; }
-        .step-section { margin-bottom: 30px; }
-        .step-title { font-weight: bold; font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; border-left: 5px solid #3498db; padding-left: 10px; }
-        .upload-box { border: 2px dashed #cbd5e0; border-radius: 8px; padding: 20px; text-align: center; background: #f8fafc; transition: 0.3s; }
-        .upload-box:hover { border-color: #3498db; background: #ebf8ff; }
-        .grid-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; background: #fff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
-        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #4a5568; font-size: 0.9em; }
-        .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 14px; box-sizing: border-box; background-color: #fdfdfd; }
-        .col-span-2 { grid-column: span 2; }
-        .col-span-3 { grid-column: span 3; }
-        .highlight-label { color: #e53e3e; }
-        .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; color: white; margin-top: 10px; transition: 0.2s; }
-        .btn-parse { background-color: #3498db; }
-        .btn-generate { background-color: #27ae60; }
-        .btn:hover { opacity: 0.9; }
-        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: none; justify-content: center; align-items: center; z-index: 10000; flex-direction: column; }
+        body { font-family: monospace; padding: 20px; background: #2c3e50; color: #fff; }
+        .container { max-width: 800px; margin: 0 auto; }
+        textarea { width: 100%; height: 500px; background: #000; color: #0f0; padding: 15px; border: 2px solid #f1c40f; font-size: 14px; line-height: 1.6; }
+        button { padding: 15px 30px; font-size: 18px; background: #3498db; color: white; border: none; cursor: pointer; width: 100%; margin-bottom: 20px; }
+        h2 { color: #f1c40f; border-bottom: 1px solid #7f8c8d; padding-bottom: 10px; }
     </style>
 </head>
 <body>
-
-<div id="loading-overlay">
-    <div style="font-size: 1.5em; color: #3498db; font-weight: bold;">處理中...</div>
-</div>
-
-<div class="container">
-    <div class="header">
-        <h1>長照合約自動生成系統 (v3.11 強力版)</h1>
+    <div class="container">
+        <h1>🛠️ 全面掃描診斷 (v3.11)</h1>
+        <p>請上傳 PDF，系統將提取「姓名、地址、吞嚥」的原始碼結構。</p>
+        <input type="file" id="pdf_upload" accept="application/pdf" style="margin-bottom: 20px;">
+        <button onclick="runDebug()">▶️ 執行診斷</button>
+        
+        <h2>診斷報告 (請複製下方內容)</h2>
+        <textarea id="debug_log" readonly>等待執行...</textarea>
     </div>
-
-    <div class="step-section">
-        <div class="step-title">步驟 1: 上傳評估量表 PDF</div>
-        <div class="upload-box">
-            <input type="file" id="pdf_upload" accept="application/pdf" />
-            <button class="btn btn-parse" onclick="parsePDF()">🔍 解析資料</button>
-        </div>
-    </div>
-
-    <div class="step-section">
-        <div class="step-title">步驟 2: 確認合約資料</div>
-        <div class="grid-form">
-            <div class="form-group"><label>個案姓名</label><input type="text" id="user_name"></div>
-            <div class="form-group"><label>身分證字號</label><input type="text" id="user_id"></div>
-            <div class="form-group"><label>部分負擔金額 (福利別)</label><input type="text" id="payment_display"></div>
-
-            <div class="form-group"><label>性別</label><input type="text" id="gender"></div>
-            <div class="form-group"><label>個案生日</label><input type="text" id="birth_date"></div>
-            
-            <div class="form-group"><label>CMS 等級</label><input type="text" id="cms_level" style="color: blue; font-weight: bold;"></div>
-            
-            <div class="form-group"><label>聯絡電話 (合約用)</label><input type="text" id="phone_number"></div>
-            <div class="form-group"><label>電話歸屬</label><input type="text" id="phone_type" style="color: blue;"></div>
-
-            <div class="form-group"><label>簽約人姓名</label><input type="text" id="contractor_name"></div>
-            <div class="form-group col-span-2"><label>代理人關係</label><input type="text" id="agent_relation"></div>
-
-            <div class="form-group"><label>身高 (cm)</label><input type="text" id="height"></div>
-            <div class="form-group"><label>體重 (kg)</label><input type="text" id="weight"></div>
-            <div class="form-group"><label>BMI</label><input type="text" id="bmi"></div>
-
-            <div class="form-group col-span-3">
-                <label class="highlight-label">通訊地址</label>
-                <input type="text" id="contact_address">
-            </div>
-
-            <div class="form-group col-span-3">
-                <label>疾病名稱 (混合智慧判斷)</label>
-                <textarea id="diseases" rows="3"></textarea>
-            </div>
-
-            <div class="form-group col-span-3">
-                <label>吞嚥困難症狀</label>
-                <textarea id="swallowing_difficulty" rows="2"></textarea>
-            </div>
-
-            <div class="form-group col-span-3">
-                <label>專業服務目標</label>
-                <textarea id="service_goal" rows="3"></textarea>
-            </div>
-        </div>
-    </div>
-
-    <div class="step-section">
-        <div class="step-title">步驟 3: 生成 Word 合約</div>
-        <div class="upload-box" style="border-color: #27ae60; background: #f0fdf4;">
-            <p>請上傳 Word 範本 (.docx)</p>
-            <input type="file" id="template_upload" accept=".docx" />
-            <button class="btn btn-generate" onclick="generateWordManual()">📄 下載合約</button>
-        </div>
-    </div>
-</div>
 
 <script>
-    function showLoading(show) { document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none'; }
-
-    // 強力清理：保留文字與括號，移除換行
-    function cleanTextDeep(text) {
-        return text.replace(/[\n\r]/g, "") 
-                   .replace(/※/g, "")
-                   .replace(/\(里[、，]鄰[、，]郵遞區號.*?\)/g, "")
-                   .replace(/[()]/g, "（）") 
-                   .replace(/（/g, "(").replace(/）/g, ")"); 
+    function log(msg) { 
+        const el = document.getElementById('debug_log');
+        el.value += msg + "\n";
+        el.scrollTop = el.scrollHeight;
     }
 
-    function extractAddressFromChunk(chunk) {
-        const regex = /(.{2,4}[縣市].*?(?:號|樓)(?:[\d之-]*[樓Ff])?)/;
-        const match = chunk.match(regex);
-        if (match) return match[1].replace(/^[^台臺高新北桃中南基宜花東澎金連苗彰雲嘉屏]*/, "").replace(/\s/g, ""); 
-        return "";
-    }
-
-    async function parsePDF() {
-        if (typeof pdfjsLib === 'undefined') { alert("PDF 元件載入中，請稍候"); return; }
+    async function runDebug() {
         const fileInput = document.getElementById('pdf_upload');
         if (fileInput.files.length === 0) { alert("請先選擇 PDF!"); return; }
-
-        showLoading(true);
-
+        
+        document.getElementById('debug_log').value = "=== 診斷開始 (v3.11) ===\n";
+        
         try {
             const file = fileInput.files[0];
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
 
             let fullText = "";
-            for (let i = 1; i <= pdf.numPages; i++) {
+            // 讀取前 8 頁 (通常包含所有關鍵資料)
+            for (let i = 1; i <= Math.min(pdf.numPages, 8); i++) {
                 const page = await pdf.getPage(i);
                 const textContent = await page.getTextContent();
-                // v3 版本通常能更好處理空格，這裡我們不 trim
-                fullText += textContent.items.map(item => item.str).join("");
+                // 使用 | 分隔，保留排版資訊
+                const pageText = textContent.items.map(item => item.str).join("|");
+                fullText += `[Page ${i}] ${pageText}\n\n`;
             }
 
-            const cleanText = cleanTextDeep(fullText);
+            // === 1. 姓名/身分證 區域 ===
+            log("--- [基本資料區] ---");
+            const nameIndex = fullText.indexOf("個案姓名");
+            if (nameIndex !== -1) {
+                log(fullText.substring(nameIndex, nameIndex + 300));
+            } else {
+                log("❌ 找不到 '個案姓名'");
+            }
+
+            // === 2. 地址 區域 ===
+            log("\n--- [地址區] ---");
+            const addrIndex = fullText.indexOf("戶籍地址");
+            if (addrIndex !== -1) {
+                log(fullText.substring(addrIndex, addrIndex + 400));
+            } else {
+                log("❌ 找不到 '戶籍地址'");
+            }
+
+            // === 3. 吞嚥困難 (G6a) ===
+            log("\n--- [吞嚥 G6a] ---");
+            let swallowIndex = fullText.indexOf("G6a");
+            if (swallowIndex === -1) swallowIndex = fullText.indexOf("吞嚥能力");
             
-            // ==========================================
-            // 1. CMS 等級 (修正：必須匹配到"級")
-            // ==========================================
-            let cmsLevel = "";
-            const lastCmsIndex = cleanText.lastIndexOf("CMS等級");
-            if (lastCmsIndex !== -1) {
-                // 往後抓取，避開 "計算1次"
-                const chunk = cleanText.substring(lastCmsIndex, lastCmsIndex + 300);
-                // Regex 強制要求數字後要有 "級" (例如: 第4級, 4級)
-                const match = chunk.match(/第?\s*(\d+)\s*級/);
-                if (match) {
-                    cmsLevel = "第" + match[1] + "級";
-                }
-            }
-
-            // ==========================================
-            // 2. 疾病抓取 (保持混合邏輯)
-            // ==========================================
-            let diseasesList = [];
-            const g4eIndex = cleanText.indexOf("G4e");
-            const endG4e = cleanText.indexOf("G4f");
-            
-            if (g4eIndex !== -1) {
-                const section = cleanText.substring(g4eIndex, endG4e !== -1 ? endG4e : g4eIndex + 2500);
-                let safeSection = section.replace(/[☐□]\s*有/g, "---").replace(/[☐□]有/g, "---");
+            if (swallowIndex !== -1) {
+                const sContent = fullText.substring(swallowIndex, swallowIndex + 1000);
+                log(sContent);
                 
-                // 使用更強的 Regex 來捕捉包含空格的編號
-                const itemRegex = /([☐☑■□✓✔R]?\s*\d{1,2}\..*?)(?=[☐☑■□✓✔R]?\s*\d{1,2}\.|G4f|$)/g;
-                let match;
-                
-                while ((match = itemRegex.exec(safeSection)) !== null) {
-                    const fullItem = match[1];
-                    const numMatch = fullItem.match(/(\d{1,2})\./);
-                    if (!numMatch) continue;
-                    
-                    const itemNum = parseInt(numMatch[1]);
-                    let isSick = false;
-
-                    // 01-03, 10 寬鬆; 其他嚴格
-                    if ((itemNum >= 1 && itemNum <= 3) || itemNum === 10) {
-                        if (fullItem.includes("有") || /[☑■✓✔R]/.test(fullItem)) isSick = true;
-                    } else {
-                        if (/[☑■✓✔R]/.test(fullItem)) isSick = true;
-                    }
-
-                    if (isSick) {
-                        let name = fullItem.replace(/^[☐☑■□✓✔R]?\s*\d{1,2}\./, "");
-                        name = name.replace(/(目前正在治療|目前使用藥物|有|☐|□|☑|■|:|：|---).*/g, "");
-                        name = name.replace(/^\d{1,2}\./, ""); 
-                        if (name.includes("(") && !name.includes(")")) name += ")";
-                        name = name.trim();
-                        if (name.length > 1 && !diseasesList.includes(name)) diseasesList.push(name);
-                    }
-                }
+                // 檢查特殊符號
+                log("\n[符號檢查]");
+                if (sContent.includes("☑")) log("✅ 發現 '☑'");
+                if (sContent.includes("■")) log("✅ 發現 '■'");
+                if (sContent.includes("✓")) log("✅ 發現 '✓'");
+                if (!sContent.includes("☑") && !sContent.includes("■") && !sContent.includes("✓")) log("❌ 無任何打勾符號");
+            } else {
+                log("❌ 找不到 'G6a'");
             }
 
-            // ==========================================
-            // 3. 吞嚥困難 (嘗試使用 v3 的解析能力)
-            // ==========================================
-            let swallowIssues = [];
-            let swallowStart = cleanText.indexOf("G6a");
-            if (swallowStart === -1) swallowStart = cleanText.indexOf("吞嚥能力");
-            
-            if (swallowStart !== -1) {
-                const sSection = cleanText.substring(swallowStart, swallowStart + 1000);
-                
-                // 先嘗試找打勾的
-                const parts = sSection.split(/([☐☑■□✓✔R]?\s*\d\.)/); 
-                for (let i = 1; i < parts.length; i += 2) {
-                    const label = parts[i]; 
-                    const content = parts[i+1];
-                    if (/[☑■✓✔R]/.test(label)) {
-                        swallowIssues.push(content.replace(/[☐☑■□✓✔R].*/, "").trim());
-                    }
-                }
-                
-                // 如果 v3 還是讀不到勾，但有 "3.吃...嗆咳" (您確認這通常是有病)
-                // 加入一個特例補救：如果文件裡有 "3.吃東西" 且沒有明確的 "☐" 在它緊鄰的前面，推測是有勾
-                // (這是風險操作，但為了自動化)
-                if (swallowIssues.length === 0) {
-                     if (/3\.吃東西/.test(sSection)) {
-                         // 檢查 "3.吃" 前面是不是 "☐"
-                         // 如果 cleanText 裡是 "☐3.吃"，那就不加。如果是 "3.吃" (前面無符號)，根據此 PDF 特性，通常是勾選符號遺失
-                         if (!/☐\s*3\.吃/.test(sSection) && !/□\s*3\.吃/.test(sSection)) {
-                             swallowIssues.push("吃東西或喝水的時候出現咳嗽或嗆咳");
-                         }
-                     }
-                }
-            }
-            if (swallowIssues.length === 0) swallowIssues.push("無吞嚥困難");
-
-            // ==========================================
-            // 其他欄位
-            // ==========================================
-            let userName = "", userId = "";
-            const headerMatch = cleanText.match(/姓名\/身分證字號[:：]?\s*([^\/]+)\/([A-Z][0-9]{9})/);
-            if (headerMatch) { userName = headerMatch[1].replace(/[:：]/g, "").trim(); userId = headerMatch[2]; }
-
-            let birthDate = "", gender = "";
-            const birthMatch = cleanText.match(/個案生日[:：]?\s*(\d{2,3}\/\d{1,2}\/\d{1,2})/);
-            if (birthMatch) birthDate = birthMatch[1];
-            const genderMatch = cleanText.match(/性別[:：]?\s*([男女])/);
-            if (genderMatch) gender = genderMatch[1];
-
-            // 電話
-            let phoneNum = "";
-            let phoneType = "個案本人"; 
-            let isAgentApp = false;
-            if (cleanText.includes("申請人非本人") || cleanText.includes("申請人:非本人")) isAgentApp = true;
-            
-            const agentPhoneMatch = cleanText.match(/代理人手機[:：]?\s*((09\d{8}))/);
-            const userPhoneMatch = cleanText.match(/個案電話.*?\s*((09\d{8})|(0\d{1,2}-?\d{6,8}))/);
-
-            if (isAgentApp && agentPhoneMatch) {
-                phoneNum = agentPhoneMatch[1];
-                phoneType = "代理人";
-            } else if (userPhoneMatch) {
-                phoneNum = userPhoneMatch[1];
-                phoneType = "個案本人";
-            } else if (agentPhoneMatch) {
-                phoneNum = agentPhoneMatch[1];
-                phoneType = "代理人 (備用)";
-            }
-
-            let agentRelation = "";
-            const relationMatch = cleanText.match(/關係或身分[:：]?\s*([^其他a-zA-Z]+)/);
-            if (relationMatch && isAgentApp) {
-                agentRelation = relationMatch[1].replace(/[:：]/g, "").trim();
-            }
-
-            let valHeight = "", valWeight = "", valBMI = "";
-            const hMatch = cleanText.match(/身高[:：]?\s*(\d+(\.\d+)?)公分/);
-            if (hMatch) valHeight = hMatch[1];
-            const wMatch = cleanText.match(/體重[:：]?\s*(\d+(\.\d+)?)公斤/);
-            if (wMatch) valWeight = wMatch[1];
-            const bmiMatch = cleanText.match(/BMI為[:：]?\s*(\d+(\.\d+)?)/);
-            if (bmiMatch) valBMI = bmiMatch[1];
-
-            // 專業服務目標
-            let serviceGoal = "";
-            const goalMatch = cleanText.match(/專業服務目標\)?[:：]?\s*(.*?)。/);
-            if (goalMatch) serviceGoal = goalMatch[1];
-            else {
-                const goalMatchBackup = cleanText.match(/最希望改善的日常生活活動項目[:：]?\s*(.*?)。/);
-                if (goalMatchBackup) serviceGoal = goalMatchBackup[1];
-            }
-            serviceGoal = serviceGoal.replace(/^\s*\(\)\s*/, "").replace(/^\s*（）\s*/, "").trim();
-
-            // 通訊地址
-            let cAddr = "";
-            let idxContact = cleanText.search(/居住\s*[(（]?\s*通訊/);
-            if (idxContact === -1) idxContact = cleanText.indexOf("通訊地址");
-            if (idxContact !== -1) {
-                let foundAddr = extractAddressFromChunk(cleanText.substring(idxContact, idxContact + 200));
-                if (foundAddr) cAddr = foundAddr;
-            }
-            if (!cAddr) {
-                const idxHouse = cleanText.indexOf("戶籍地址");
-                if (idxHouse !== -1) cAddr = extractAddressFromChunk(cleanText.substring(idxHouse, idxHouse + 150));
-            }
-
-            // 福利別
-            let paymentTxt = "第三類 (一般戶)"; 
-            if (cleanText.includes("長照福利第三類")) { paymentTxt = "第三類 (一般戶)"; }
-            else if (cleanText.includes("長照福利第二類")) { paymentTxt = "第二類 (中低收)"; }
-            else if (cleanText.includes("長照福利第一類")) { paymentTxt = "第一類 (低收入戶)"; }
-
-            // 簽約人
-            let contractorName = userName;
-            if (isAgentApp) {
-                const agentNameMatch = cleanText.match(/代理人姓名[:：]?\s*([^\s代理人]+)/);
-                if (agentNameMatch) contractorName = agentNameMatch[1];
-            }
-
-            // 填入資料
-            document.getElementById('user_name').value = userName;
-            document.getElementById('user_id').value = userId;
-            document.getElementById('phone_number').value = phoneNum;
-            document.getElementById('phone_type').value = phoneType;
-            document.getElementById('gender').value = gender;
-            document.getElementById('birth_date').value = birthDate;
-            document.getElementById('cms_level').value = cmsLevel;
-            document.getElementById('payment_display').value = paymentTxt;
-            document.getElementById('contractor_name').value = contractorName;
-            document.getElementById('agent_relation').value = agentRelation;
-            document.getElementById('height').value = valHeight;
-            document.getElementById('weight').value = valWeight;
-            document.getElementById('bmi').value = valBMI;
-            document.getElementById('diseases').value = diseasesList.join("、");
-            document.getElementById('swallowing_difficulty').value = swallowIssues.join("\n");
-            document.getElementById('service_goal').value = serviceGoal;
-            document.getElementById('contact_address').value = cAddr;
-
-            showLoading(false);
+            log("\n=== 診斷結束 ===");
 
         } catch (err) {
-            showLoading(false);
-            console.error(err);
-            alert("解析錯誤: " + err.message);
+            log("錯誤: " + err.message);
         }
-    }
-
-    async function generateWordManual() {
-        const templateInput = document.getElementById('template_upload');
-        if (templateInput.files.length === 0) { alert("請選擇 Word 檔案"); return; }
-        showLoading(true);
-        try {
-            const arrayBuffer = await templateInput.files[0].arrayBuffer();
-            await generateWordFromBuffer(arrayBuffer);
-            showLoading(false);
-        } catch(e) { 
-            showLoading(false);
-            alert("錯誤: " + e.message); 
-        } 
-    }
-
-    async function generateWordFromBuffer(arrayBuffer) {
-        if (typeof PizZip === 'undefined') { throw new Error("Docx 模組未載入"); }
-        const zip = new PizZip(arrayBuffer);
-        const doc = new window.docxtemplater(zip, { 
-            paragraphLoop: true, 
-            linebreaks: true,
-            nullGetter: () => "",
-            delimiters: { start: '{{', end: '}}' }
-        });
-
-        const templateData = {
-            user_name: document.getElementById('user_name').value,
-            user_id: document.getElementById('user_id').value,
-            payment_display: document.getElementById('payment_display').value,
-            gender: document.getElementById('gender').value,
-            birth_date: document.getElementById('birth_date').value,
-            cms_level: document.getElementById('cms_level').value,
-            phone_number: document.getElementById('phone_number').value,
-            phone_type: document.getElementById('phone_type').value,
-            contractor_name: document.getElementById('contractor_name').value,
-            agent_relation: document.getElementById('agent_relation').value,
-            height: document.getElementById('height').value,
-            weight: document.getElementById('weight').value,
-            bmi: document.getElementById('bmi').value,
-            contact_address: document.getElementById('contact_address').value,
-            diseases: document.getElementById('diseases').value,
-            swallowing_difficulty: document.getElementById('swallowing_difficulty').value,
-            service_goal: document.getElementById('service_goal').value
-        };
-
-        doc.setData(templateData);
-        try {
-            doc.render();
-        } catch (error) {
-            throw new Error("Word 生成錯誤: " + JSON.stringify(error));
-        }
-
-        const blob = doc.getZip().generate({
-            type: "blob",
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        });
-
-        saveAs(blob, `合約書_${templateData.user_name}.docx`);
     }
 </script>
-
 </body>
 </html>
