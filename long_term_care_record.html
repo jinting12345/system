@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照紀錄自動生成系統</title>
+    <title>長照紀錄自動生成系統 (V2 修正版)</title>
     
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -23,7 +23,6 @@
         body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background-color: #f5f7fa; color: #333; }
         .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
         
-        /* 頂部導航 */
         .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .back-link { text-decoration: none; color: #666; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; gap: 5px; cursor: pointer; transition: color 0.2s; }
         .back-link:hover { color: #333; }
@@ -177,9 +176,9 @@
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     const SUPABASE_KEY = RAW_KEY.trim();
 
-    // 🌟 這裡修改為您的正確路徑
+    // 🌟 設定檔名 (不含路徑，我們會自動搜尋)
     const BUCKET_NAME = 'system_files'; 
-    const TEMPLATE_PATH = 'templates/record_template.docx';
+    const TARGET_FILE_NAME = 'record_template.docx';
 
     let supabase = null;
 
@@ -208,7 +207,7 @@
     }
 
     // ============================================
-    // Auth 邏輯 (完全仿照合約系統)
+    // Auth 邏輯
     // ============================================
     async function handleLogin() {
         if (!supabase) return;
@@ -249,7 +248,7 @@
     }
 
     // ============================================
-    // 模板下載與生成邏輯
+    // 模板下載與生成邏輯 (核心修正區)
     // ============================================
     function switchTemplateMode() {
         const mode = document.querySelector('input[name="template_mode"]:checked').value;
@@ -257,24 +256,53 @@
         document.getElementById('manual_mode_box').style.display = mode === 'manual' ? 'block' : 'none';
     }
 
-    async function generateRecordAuto() {
-        showLoading(true, "下載範本中...");
-        try {
-            // 按下按鈕才下載，絕對不會卡住
-            const { data, error } = await supabase.storage
-                .from(BUCKET_NAME)
-                .download(TEMPLATE_PATH);
+    // 🌟 新增：自動搜尋正確的路徑
+    async function findAndDownloadTemplate() {
+        // 1. 嘗試列出 templates 資料夾內的檔案
+        const { data: listData, error: listError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .list('templates');
 
-            if (error) throw error;
+        if (listError) {
+            throw new Error(`無法讀取資料夾列表: ${listError.message} (請檢查 Policies)`);
+        }
+
+        // 2. 在列表中尋找目標檔案
+        const foundFile = listData.find(f => f.name === TARGET_FILE_NAME);
+        
+        if (!foundFile) {
+            // 如果列表是空的，或者找不到檔案，這通常代表「權限不足」
+            // 因為如果權限不足，Supabase 有時會回傳空列表而不是錯誤
+            if (listData.length === 0) {
+                 throw new Error(`權限不足：系統在 templates 資料夾內看不到任何檔案。\n請至 Supabase > Storage > Policies 檢查權限是否開放給 authenticated users。`);
+            }
+            throw new Error(`找不到檔案：${TARGET_FILE_NAME}\n目前資料夾內只有：${listData.map(f=>f.name).join(", ")}`);
+        }
+
+        // 3. 找到檔案了，使用正確路徑下載
+        const correctPath = `templates/${foundFile.name}`;
+        console.log("找到檔案路徑:", correctPath);
+
+        const { data, error } = await supabase.storage
+            .from(BUCKET_NAME)
+            .download(correctPath);
+
+        if (error) throw error;
+        return await data.arrayBuffer();
+    }
+
+    async function generateRecordAuto() {
+        showLoading(true, "正在從雲端搜尋模板...");
+        try {
+            const arrayBuffer = await findAndDownloadTemplate();
             
-            const arrayBuffer = await data.arrayBuffer();
             showLoading(true, "生成紀錄表中...");
             await createWord(arrayBuffer, "長照紀錄_自動");
             showLoading(false);
         } catch (error) {
             showLoading(false);
             console.error(error);
-            alert("自動模式失敗: " + error.message + "\n請確認 system_files/templates/record_template.docx 是否存在");
+            alert("❌ 下載失敗！\n" + error.message);
         }
     }
 
@@ -336,7 +364,7 @@
     }
 
     // ============================================
-    // PDF 解析邏輯 (保留您強大的 V14 紀錄版解析)
+    // PDF 解析邏輯
     // ============================================
     function cleanTextDeep(text) {
         return text.replace(/[\n\r]/g, "") 
