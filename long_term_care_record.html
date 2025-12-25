@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照紀錄自動生成系統 (V2 修正版)</title>
+    <title>長照紀錄自動生成系統 (最終完整版)</title>
     
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -23,6 +23,7 @@
         body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background-color: #f5f7fa; color: #333; }
         .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
         
+        /* 頂部導航 */
         .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .back-link { text-decoration: none; color: #666; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; gap: 5px; cursor: pointer; transition: color 0.2s; }
         .back-link:hover { color: #333; }
@@ -172,17 +173,21 @@
 </div>
 
 <script>
+    // ============================================
+    // 參數設定區
+    // ============================================
     const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co';
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     const SUPABASE_KEY = RAW_KEY.trim();
-
-    // 🌟 設定檔名 (不含路徑，我們會自動搜尋)
+    
     const BUCKET_NAME = 'system_files'; 
     const TARGET_FILE_NAME = 'record_template.docx';
 
     let supabase = null;
 
-    // 初始化
+    // ============================================
+    // 系統初始化
+    // ============================================
     window.onload = function() {
         showLoading(true, "系統初始化中...");
         setTimeout(() => {
@@ -248,7 +253,7 @@
     }
 
     // ============================================
-    // 模板下載與生成邏輯 (核心修正區)
+    // 模板下載與生成邏輯
     // ============================================
     function switchTemplateMode() {
         const mode = document.querySelector('input[name="template_mode"]:checked').value;
@@ -256,7 +261,7 @@
         document.getElementById('manual_mode_box').style.display = mode === 'manual' ? 'block' : 'none';
     }
 
-    // 🌟 新增：自動搜尋正確的路徑
+    // 自動搜尋正確的路徑 (解決路徑問題)
     async function findAndDownloadTemplate() {
         // 1. 嘗試列出 templates 資料夾內的檔案
         const { data: listData, error: listError } = await supabase.storage
@@ -264,19 +269,14 @@
             .list('templates');
 
         if (listError) {
-            throw new Error(`無法讀取資料夾列表: ${listError.message} (請檢查 Policies)`);
+            throw new Error(`無法讀取資料夾列表: ${listError.message}`);
         }
 
         // 2. 在列表中尋找目標檔案
         const foundFile = listData.find(f => f.name === TARGET_FILE_NAME);
         
         if (!foundFile) {
-            // 如果列表是空的，或者找不到檔案，這通常代表「權限不足」
-            // 因為如果權限不足，Supabase 有時會回傳空列表而不是錯誤
-            if (listData.length === 0) {
-                 throw new Error(`權限不足：系統在 templates 資料夾內看不到任何檔案。\n請至 Supabase > Storage > Policies 檢查權限是否開放給 authenticated users。`);
-            }
-            throw new Error(`找不到檔案：${TARGET_FILE_NAME}\n目前資料夾內只有：${listData.map(f=>f.name).join(", ")}`);
+            throw new Error(`在雲端找不到檔案：${TARGET_FILE_NAME}\n目前資料夾內只有：${listData.map(f=>f.name).join(", ")}`);
         }
 
         // 3. 找到檔案了，使用正確路徑下載
@@ -302,7 +302,7 @@
         } catch (error) {
             showLoading(false);
             console.error(error);
-            alert("❌ 下載失敗！\n" + error.message);
+            alert("❌ 操作失敗！\n" + error.message);
         }
     }
 
@@ -322,45 +322,64 @@
     }
 
     // ============================================
-    // 共用 Word 生成函數
+    // 共用 Word 生成函數 (含 Multi Error 錯誤偵測)
     // ============================================
     async function createWord(buffer, prefix) {
-        const zip = new PizZip(buffer);
-        const doc = new window.docxtemplater(zip, { 
-            paragraphLoop: true, 
-            linebreaks: true,
-            nullGetter: () => ""
-        });
+        try {
+            const zip = new PizZip(buffer);
+            const doc = new window.docxtemplater(zip, { 
+                paragraphLoop: true, 
+                linebreaks: true,
+                nullGetter: () => ""
+            });
 
-        const templateData = {
-            user_name: document.getElementById('user_name').value,
-            user_id: document.getElementById('user_id').value,
-            payment_display: document.getElementById('payment_display').value,
-            gender: document.getElementById('gender').value,
-            birth_date: document.getElementById('birth_date').value,
-            cms_level: document.getElementById('cms_level').value,
-            phone_number: document.getElementById('phone_number').value,
-            phone_type: document.getElementById('phone_type').value,
-            contractor_name: document.getElementById('contractor_name').value,
-            agent_relation: document.getElementById('agent_relation').value,
-            height: document.getElementById('height').value,
-            weight: document.getElementById('weight').value,
-            bmi: document.getElementById('bmi').value,
-            contact_address: document.getElementById('contact_address').value,
-            diseases: document.getElementById('diseases').value,
-            service_goal: document.getElementById('service_goal').value,
-            today: new Date().toLocaleDateString('zh-TW')
-        };
+            const templateData = {
+                user_name: document.getElementById('user_name').value || "",
+                user_id: document.getElementById('user_id').value || "",
+                payment_display: document.getElementById('payment_display').value || "",
+                gender: document.getElementById('gender').value || "",
+                birth_date: document.getElementById('birth_date').value || "",
+                cms_level: document.getElementById('cms_level').value || "",
+                phone_number: document.getElementById('phone_number').value || "",
+                phone_type: document.getElementById('phone_type').value || "",
+                contractor_name: document.getElementById('contractor_name').value || "",
+                agent_relation: document.getElementById('agent_relation').value || "",
+                height: document.getElementById('height').value || "",
+                weight: document.getElementById('weight').value || "",
+                bmi: document.getElementById('bmi').value || "",
+                contact_address: document.getElementById('contact_address').value || "",
+                diseases: document.getElementById('diseases').value || "",
+                service_goal: document.getElementById('service_goal').value || "",
+                today: new Date().toLocaleDateString('zh-TW')
+            };
 
-        doc.setData(templateData);
-        doc.render();
+            doc.setData(templateData);
+            doc.render(); // 這裡如果出錯，會被下面的 catch 抓到
 
-        const blob = doc.getZip().generate({
-            type: "blob",
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        });
+            const blob = doc.getZip().generate({
+                type: "blob",
+                mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            });
 
-        saveAs(blob, `${prefix}_${templateData.user_name}.docx`);
+            saveAs(blob, `${prefix}_${templateData.user_name}.docx`);
+            
+        } catch (error) {
+            showLoading(false);
+            
+            // 🌟 錯誤解析邏輯：把奇怪的代碼轉成人類看得懂的訊息
+            if (error.properties && error.properties.errors) {
+                const errorMessages = error.properties.errors.map(function(err) {
+                    return err.properties.explanation;
+                }).join("\n");
+                
+                console.log("Word 模板錯誤詳情:", errorMessages);
+                alert("⚠️ Word 模板格式有誤！\n\n請打開您的 Word 檔，檢查下列標籤是否打錯字或括號不完整：\n\n" + errorMessages);
+            } else {
+                console.error(error);
+                alert("❌ 生成失敗: " + error.message);
+            }
+            throw error;
+        }
     }
 
     // ============================================
