@@ -3,12 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>義大醫院長照合約生成系統 (V14 完結版)</title>
+    <title>長照紀錄自動生成系統</title>
     
-    <script type="module">
-        import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-        window.createClient = createClient;
-    </script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     
     <script src="https://unpkg.com/pizzip@3.1.4/dist/pizzip.min.js"></script>
     <script src="https://unpkg.com/docxtemplater@3.37.11/build/docxtemplater.js"></script>
@@ -19,24 +16,43 @@
     </script>
 
     <style>
-        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; background-color: #f5f7fa; color: #333; }
+        body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 1000px; margin: 0 auto; background-color: #f5f7fa; color: #333; position: relative; }
         .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
-        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; }
-        .header h1 { color: #2c3e50; margin: 0; }
+        
+        /* 標題與回選單按鈕 */
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #edf2f7; padding-bottom: 15px; }
+        .header h1 { color: #2c3e50; margin: 0; font-size: 1.8em; }
+        .back-btn { text-decoration: none; background: #6c757d; color: white; padding: 8px 15px; border-radius: 5px; font-size: 0.9em; transition: 0.3s; }
+        .back-btn:hover { background: #5a6268; }
+
         .step-section { margin-bottom: 30px; }
         .step-title { font-weight: bold; font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; border-left: 5px solid #3498db; padding-left: 10px; }
         .upload-box { border: 2px dashed #cbd5e0; border-radius: 8px; padding: 20px; text-align: center; background: #f8fafc; transition: 0.3s; }
         .upload-box:hover { border-color: #3498db; background: #ebf8ff; }
+        
         .grid-form { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; background: #fff; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; }
         .form-group label { display: block; font-weight: bold; margin-bottom: 5px; color: #4a5568; font-size: 0.9em; }
         .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px; border: 1px solid #cbd5e0; border-radius: 4px; font-size: 14px; box-sizing: border-box; background-color: #fdfdfd; }
         .col-span-2 { grid-column: span 2; }
         .col-span-3 { grid-column: span 3; }
         .highlight-label { color: #e53e3e; }
+        
         .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; color: white; margin-top: 10px; transition: 0.2s; }
         .btn-parse { background-color: #3498db; }
         .btn-generate { background-color: #27ae60; }
         .btn:hover { opacity: 0.9; }
+        .btn:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        /* 狀態標籤 */
+        .status-badge { display: inline-block; padding: 5px 10px; border-radius: 20px; font-size: 0.85em; margin-left: 10px; }
+        .status-loading { background: #fff3cd; color: #856404; }
+        .status-ready { background: #d4edda; color: #155724; }
+        .status-error { background: #f8d7da; color: #721c24; }
+
+        /* 底部管理區 */
+        .admin-section { margin-top: 50px; border-top: 1px solid #ddd; padding-top: 20px; text-align: center; font-size: 0.9em; color: #777; }
+        .admin-btn { background: none; border: 1px solid #aaa; padding: 5px 10px; border-radius: 4px; cursor: pointer; color: #555; }
+        
         #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: none; justify-content: center; align-items: center; z-index: 10000; flex-direction: column; }
     </style>
 </head>
@@ -48,7 +64,8 @@
 
 <div class="container">
     <div class="header">
-        <h1>長照合約自動生成系統</h1>
+        <h1>長照紀錄紙本登打 (自動生成)</h1>
+        <a href="menu.html" class="back-btn">⬅ 回選單</a>
     </div>
 
     <div class="step-section">
@@ -60,66 +77,167 @@
     </div>
 
     <div class="step-section">
-        <div class="step-title">步驟 2: 確認合約資料</div>
+        <div class="step-title">步驟 2: 確認資料 (供紀錄表使用)</div>
         <div class="grid-form">
             <div class="form-group"><label>個案姓名</label><input type="text" id="user_name"></div>
             <div class="form-group"><label>身分證字號</label><input type="text" id="user_id"></div>
-            <div class="form-group"><label>部分負擔金額 (福利別)</label><input type="text" id="payment_display"></div>
-
             <div class="form-group"><label>性別</label><input type="text" id="gender"></div>
+            
             <div class="form-group"><label>個案生日</label><input type="text" id="birth_date"></div>
-            
-            <div class="form-group"><label>CMS 等級</label><input type="text" id="cms_level" style="color: blue; font-weight: bold;" placeholder="例如：第4級"></div>
-            
-            <div class="form-group"><label>聯絡電話 (合約用)</label><input type="text" id="phone_number"></div>
-            <div class="form-group"><label>電話歸屬</label><input type="text" id="phone_type" style="color: blue;"></div>
-
-            <div class="form-group"><label>簽約人姓名</label><input type="text" id="contractor_name"></div>
-            <div class="form-group col-span-2"><label>代理人關係</label><input type="text" id="agent_relation"></div>
+            <div class="form-group"><label>CMS 等級</label><input type="text" id="cms_level"></div>
+            <div class="form-group"><label>部分負擔</label><input type="text" id="payment_display"></div>
 
             <div class="form-group"><label>身高 (cm)</label><input type="text" id="height"></div>
             <div class="form-group"><label>體重 (kg)</label><input type="text" id="weight"></div>
             <div class="form-group"><label>BMI</label><input type="text" id="bmi"></div>
 
-            <div class="form-group col-span-3">
-                <label class="highlight-label">通訊地址</label>
+            <div class="form-group"><label>主要聯絡人</label><input type="text" id="contractor_name"></div>
+            <div class="form-group"><label>聯絡電話</label><input type="text" id="phone_number"></div>
+            <div class="form-group"><label>關係</label><input type="text" id="agent_relation"></div>
+            <input type="hidden" id="phone_type"> <div class="form-group col-span-3">
+                <label>居住/通訊地址</label>
                 <input type="text" id="contact_address">
             </div>
 
             <div class="form-group col-span-3">
-                <label>疾病名稱 (混合邏輯修正版)</label>
+                <label>疾病列表</label>
                 <textarea id="diseases" rows="3"></textarea>
             </div>
 
             <div class="form-group col-span-3">
-                <label>專業服務目標</label>
-                <textarea id="service_goal" rows="3"></textarea>
+                <label>服務目標</label>
+                <textarea id="service_goal" rows="2"></textarea>
             </div>
         </div>
     </div>
 
     <div class="step-section">
-        <div class="step-title">步驟 3: 生成 Word 合約</div>
-        <div class="upload-box" style="border-color: #27ae60; background: #f0fdf4;">
-            <p>請上傳 Word 範本 (.docx)</p>
-            <input type="file" id="template_upload" accept=".docx" />
-            <button class="btn btn-generate" onclick="generateWordManual()">📄 下載合約</button>
+        <div class="step-title">
+            步驟 3: 生成長照紀錄 Word
+            <span id="templateStatus" class="status-badge status-loading">連接中...</span>
         </div>
+        <div class="upload-box" style="border-color: #27ae60; background: #f0fdf4;">
+            <p id="templateMsg">正在從雲端載入模板...</p>
+            <button id="btnGenerate" class="btn btn-generate" onclick="generateRecord()" disabled>📄 立即下載長照紀錄表</button>
+        </div>
+    </div>
+
+    <div class="admin-section">
+        <details>
+            <summary>⚙️ 模板管理 (若需更新模板請點此)</summary>
+            <div style="margin-top: 15px; padding: 15px; border: 1px dashed #ccc; background: #fafafa;">
+                <p>上傳新的 <b>Word 模板 (.docx)</b> 將會覆蓋雲端上的舊檔案。</p>
+                <input type="file" id="new_template_upload" accept=".docx">
+                <button class="admin-btn" style="background: #6c757d; color: white;" onclick="uploadNewTemplate()">⬆️ 上傳並更新模板</button>
+            </div>
+        </details>
     </div>
 </div>
 
 <script>
+    // 設定 Supabase
+    const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
+    const BUCKET_NAME = 'system_files'; // 假設您之前的合約模板放在這裡
+    const TEMPLATE_NAME = 'record_template.docx'; // 這是這個新功能專用的模板檔名
+
+    let supabase = null;
+    let globalTemplateBuffer = null; // 儲存下載下來的模板
+
     function showLoading(show) { document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none'; }
 
-    // 🌟 V14 關鍵修正：括號不再被錯誤替換
+    // 初始化
+    window.onload = async () => {
+        try {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            await loadTemplate(); // 自動載入模板
+        } catch(e) {
+            console.error(e);
+            updateStatus('error', '系統初始化失敗');
+        }
+    };
+
+    // ===========================
+    // 雲端模板功能
+    // ===========================
+
+    // 1. 從 Supabase 下載模板
+    async function loadTemplate() {
+        updateStatus('loading', '正在下載模板...');
+        try {
+            const { data, error } = await supabase.storage
+                .from(BUCKET_NAME)
+                .download(TEMPLATE_NAME);
+
+            if (error) {
+                if(error.message.includes("Object not found")) {
+                    updateStatus('error', '找不到模板，請在下方「模板管理」上傳');
+                } else {
+                    throw error;
+                }
+            } else {
+                globalTemplateBuffer = await data.arrayBuffer();
+                updateStatus('ready', '模板準備就緒 (record_template.docx)');
+                document.getElementById('btnGenerate').disabled = false;
+                document.getElementById('templateMsg').innerText = "✅ 雲端模板已載入，可直接生成。";
+            }
+        } catch (err) {
+            console.error(err);
+            updateStatus('error', '模板載入失敗: ' + err.message);
+        }
+    }
+
+    // 2. 上傳新模板到 Supabase
+    async function uploadNewTemplate() {
+        const fileInput = document.getElementById('new_template_upload');
+        if (fileInput.files.length === 0) { alert("請先選擇一個 .docx 檔案"); return; }
+        
+        const file = fileInput.files[0];
+        showLoading(true);
+
+        try {
+            // 上傳並覆蓋 (upsert: true)
+            const { data, error } = await supabase.storage
+                .from(BUCKET_NAME)
+                .upload(TEMPLATE_NAME, file, {
+                    cacheControl: '3600',
+                    upsert: true
+                });
+
+            if (error) throw error;
+
+            alert("✅ 模板更新成功！");
+            fileInput.value = ''; // 清空
+            await loadTemplate(); // 重新載入
+        } catch (err) {
+            alert("❌ 上傳失敗: " + err.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+
+    function updateStatus(type, msg) {
+        const el = document.getElementById('templateStatus');
+        el.innerText = msg;
+        el.className = 'status-badge';
+        if (type === 'loading') el.classList.add('status-loading');
+        if (type === 'ready') el.classList.add('status-ready');
+        if (type === 'error') el.classList.add('status-error');
+    }
+
+    // ===========================
+    // V14 解析邏輯 (核心功能)
+    // ===========================
+    
+    // 括號清理
     function cleanTextDeep(text) {
         return text.replace(/[\n\r]/g, "") 
                    .replace(/※/g, "")
                    .replace(/\(里[、，]鄰[、，]郵遞區號.*?\)/g, "")
-                   // 直接將全形括號轉半形，不做其他多餘轉換
                    .replace(/[（]/g, "(").replace(/[）]/g, ")");
     }
 
+    // 地址擷取
     function extractAddressFromChunk(chunk) {
         const regex = /(.{2,4}[縣市].*?(?:號|樓)(?:[\d之-]*[樓Ff])?)/;
         const match = chunk.match(regex);
@@ -127,6 +245,7 @@
         return "";
     }
 
+    // PDF 解析主程式
     async function parsePDF() {
         if (typeof pdfjsLib === 'undefined') { alert("PDF 元件載入中"); return; }
         const fileInput = document.getElementById('pdf_upload');
@@ -146,15 +265,10 @@
                 fullText += textContent.items.map(item => item.str).join("");
             }
 
-            // 🌟 步驟 1: 全局標準化 (解決 "代理人" 找不到的問題)
             fullText = fullText.normalize('NFKC');
-            
-            // 🌟 步驟 2: 清理雜訊
             const cleanText = cleanTextDeep(fullText);
             
-            // ==========================================
             // 1. 基本資料
-            // ==========================================
             let userName = "", userId = "";
             const headerMatch = cleanText.match(/姓名\/身分證字號[:：]?\s*([^\/]+)\/([A-Z][0-9]{9})/);
             if (headerMatch) { userName = headerMatch[1].trim(); userId = headerMatch[2]; }
@@ -165,24 +279,16 @@
             const genderMatch = cleanText.match(/性別[:：]?\s*([男女])/);
             if (genderMatch) gender = genderMatch[1];
 
-            // ==========================================
-            // 2. 代理人判斷 (V14 修正：基於標準化文字)
-            // ==========================================
+            // 2. 代理人與電話
             let phoneNum = "", phoneType = "個案本人", contractorName = userName, agentRelation = "";
-            let isAgentApp = cleanText.includes("申請人非本人") || cleanText.includes("申請人:非本人");
-            
-            // 現在 cleanText 已經 normalize 過了，"代理人" 三個字一定找得到
             const agentNameMatch = cleanText.match(/代理人姓名[:：]?\s*([^\s:：,，"\[\]]+)/);
             
-            // 只要抓到名字且不是 "無"，就切換模式
             if (agentNameMatch && agentNameMatch[1].length > 1 && agentNameMatch[1] !== "無") {
                 contractorName = agentNameMatch[1].trim();
                 phoneType = "代理人";
-                
                 const agentPhoneMatch = cleanText.match(/代理人手機[:：]?\s*((09\d{8}))/);
                 if (agentPhoneMatch) phoneNum = agentPhoneMatch[1];
 
-                // 抓取關係：排除 "身分證" 這種誤判
                 const relMatch = cleanText.match(/關係或身分[:：]?\s*([^\s:：0-9,，"\[\]]+)/);
                 if (relMatch) {
                     let rel = relMatch[1].trim();
@@ -196,23 +302,16 @@
                 if (userPhoneMatch) phoneNum = userPhoneMatch[1];
             }
 
-            // ==========================================
-            // 3. CMS 等級 (倒序搜尋)
-            // ==========================================
+            // 3. CMS
             let cmsLevel = "";
             const lastCmsIndex = cleanText.lastIndexOf("CMS等級");
             if (lastCmsIndex !== -1) {
                 const chunk = cleanText.substring(lastCmsIndex, lastCmsIndex + 200);
-                // 抓取 "第X級"
                 const match = chunk.match(/第\s*(\d+)\s*級/);
-                if (match) {
-                    cmsLevel = "第" + match[1] + "級";
-                }
+                if (match) cmsLevel = "第" + match[1] + "級";
             }
 
-            // ==========================================
-            // 4. 疾病抓取 (修正括號問題)
-            // ==========================================
+            // 4. 疾病
             let diseasesList = [];
             const g4eIndex = cleanText.indexOf("G4e");
             const endG4e = cleanText.indexOf("G4f");
@@ -231,12 +330,9 @@
                     const itemNum = parseInt(numMatch[1]);
                     let isSick = false;
 
-                    // 1,2,3,10 寬鬆
                     if ([1, 2, 3, 10].includes(itemNum)) {
                         if (fullItem.includes("有") || /[☑■✓✔R]/.test(fullItem)) isSick = true;
-                    } 
-                    // 其他嚴格
-                    else {
+                    } else {
                         if (/[☑■✓✔R]/.test(fullItem)) isSick = true;
                     }
 
@@ -244,20 +340,13 @@
                         let name = fullItem.replace(/^[☐☑■□✓✔R]?\s*\d{1,2}\./, "");
                         name = name.replace(/(目前正在治療|目前使用藥物|有|☐|□|☑|■|:|：|---).*/g, "");
                         name = name.replace(/^\d{1,2}\./, "").trim(); 
-                        
-                        // 修復括號：cleanTextDeep 已經確保了標準括號，這裡不再多做轉換
                         if (name.includes("(") && !name.includes(")")) name += ")";
-                        
-                        if (name.length > 1 && !diseasesList.includes(name)) {
-                            diseasesList.push(name);
-                        }
+                        if (name.length > 1 && !diseasesList.includes(name)) diseasesList.push(name);
                     }
                 }
             }
 
-            // ==========================================
-            // 5. 其他
-            // ==========================================
+            // 5. 體位與其他
             let valHeight = "", valWeight = "", valBMI = "";
             const hMatch = cleanText.match(/身高[:：]?\s*(\d+(\.\d+)?)公分/);
             if (hMatch) valHeight = hMatch[1];
@@ -276,9 +365,9 @@
             serviceGoal = serviceGoal.replace(/^\s*\(\)\s*/, "").replace(/^\s*（）\s*/, "").trim();
 
             let paymentTxt = "第三類 (一般戶)"; 
-            if (cleanText.includes("長照福利第三類")) { paymentTxt = "第三類 (一般戶)"; }
-            else if (cleanText.includes("長照福利第二類")) { paymentTxt = "第二類 (中低收)"; }
-            else if (cleanText.includes("長照福利第一類")) { paymentTxt = "第一類 (低收入戶)"; }
+            if (cleanText.includes("長照福利第三類")) { paymentTxt = "第三類"; }
+            else if (cleanText.includes("長照福利第二類")) { paymentTxt = "第二類"; }
+            else if (cleanText.includes("長照福利第一類")) { paymentTxt = "第一類"; }
 
             let cAddr = "";
             let idxContact = cleanText.search(/居住\s*[(（]?\s*通訊/);
@@ -292,7 +381,7 @@
                 if (idxHouse !== -1) cAddr = extractAddressFromChunk(cleanText.substring(idxHouse, idxHouse + 200));
             }
 
-            // 填入資料
+            // 填入 UI
             document.getElementById('user_name').value = userName;
             document.getElementById('user_id').value = userId;
             document.getElementById('phone_number').value = phoneNum;
@@ -306,9 +395,7 @@
             document.getElementById('height').value = valHeight;
             document.getElementById('weight').value = valWeight;
             document.getElementById('bmi').value = valBMI;
-            
             document.getElementById('diseases').value = diseasesList.join("、");
-            // 吞嚥欄位已移除
             document.getElementById('service_goal').value = serviceGoal;
             document.getElementById('contact_address').value = cAddr;
 
@@ -321,63 +408,57 @@
         }
     }
 
-    async function generateWordManual() {
-        const templateInput = document.getElementById('template_upload');
-        if (templateInput.files.length === 0) { alert("請選擇 Word 檔案"); return; }
+    // ===========================
+    // Word 生成 (使用雲端 Buffer)
+    // ===========================
+    async function generateRecord() {
+        if (!globalTemplateBuffer) { alert("模板尚未載入"); return; }
+        
         showLoading(true);
         try {
-            const arrayBuffer = await templateInput.files[0].arrayBuffer();
-            await generateWordFromBuffer(arrayBuffer);
-            showLoading(false);
-        } catch(e) { 
-            showLoading(false);
-            alert("錯誤: " + e.message); 
-        } 
-    }
+            const zip = new PizZip(globalTemplateBuffer);
+            const doc = new window.docxtemplater(zip, { 
+                paragraphLoop: true, 
+                linebreaks: true,
+                nullGetter: () => ""
+            });
 
-    async function generateWordFromBuffer(arrayBuffer) {
-        if (typeof PizZip === 'undefined') { throw new Error("Docx 模組未載入"); }
-        const zip = new PizZip(arrayBuffer);
-        const doc = new window.docxtemplater(zip, { 
-            paragraphLoop: true, 
-            linebreaks: true,
-            nullGetter: () => "",
-            delimiters: { start: '{{', end: '}}' }
-        });
+            const templateData = {
+                user_name: document.getElementById('user_name').value,
+                user_id: document.getElementById('user_id').value,
+                payment_display: document.getElementById('payment_display').value,
+                gender: document.getElementById('gender').value,
+                birth_date: document.getElementById('birth_date').value,
+                cms_level: document.getElementById('cms_level').value,
+                phone_number: document.getElementById('phone_number').value,
+                phone_type: document.getElementById('phone_type').value,
+                contractor_name: document.getElementById('contractor_name').value,
+                agent_relation: document.getElementById('agent_relation').value,
+                height: document.getElementById('height').value,
+                weight: document.getElementById('weight').value,
+                bmi: document.getElementById('bmi').value,
+                contact_address: document.getElementById('contact_address').value,
+                diseases: document.getElementById('diseases').value,
+                service_goal: document.getElementById('service_goal').value,
+                // 額外欄位：您可以在這裡加入自動產生今天的日期
+                today: new Date().toLocaleDateString('zh-TW')
+            };
 
-        const templateData = {
-            user_name: document.getElementById('user_name').value,
-            user_id: document.getElementById('user_id').value,
-            payment_display: document.getElementById('payment_display').value,
-            gender: document.getElementById('gender').value,
-            birth_date: document.getElementById('birth_date').value,
-            cms_level: document.getElementById('cms_level').value,
-            phone_number: document.getElementById('phone_number').value,
-            phone_type: document.getElementById('phone_type').value,
-            contractor_name: document.getElementById('contractor_name').value,
-            agent_relation: document.getElementById('agent_relation').value,
-            height: document.getElementById('height').value,
-            weight: document.getElementById('weight').value,
-            bmi: document.getElementById('bmi').value,
-            contact_address: document.getElementById('contact_address').value,
-            diseases: document.getElementById('diseases').value,
-            // 吞嚥困難已移除
-            service_goal: document.getElementById('service_goal').value
-        };
-
-        doc.setData(templateData);
-        try {
+            doc.setData(templateData);
             doc.render();
+
+            const blob = doc.getZip().generate({
+                type: "blob",
+                mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            });
+
+            saveAs(blob, `長照紀錄_${templateData.user_name}.docx`);
         } catch (error) {
-            throw new Error("Word 生成錯誤: " + JSON.stringify(error));
+            alert("Word 生成錯誤: " + JSON.stringify(error));
+            console.error(error);
+        } finally {
+            showLoading(false);
         }
-
-        const blob = doc.getZip().generate({
-            type: "blob",
-            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        });
-
-        saveAs(blob, `合約書_${templateData.user_name}.docx`);
     }
 </script>
 
