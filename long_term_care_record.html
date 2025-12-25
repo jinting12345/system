@@ -165,8 +165,6 @@
     const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co';
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     const SUPABASE_KEY = RAW_KEY.trim();
-    
-    // 🌟 這裡使用您的檔名
     const BUCKET_NAME = 'system_files'; 
     const TARGET_FILE_NAME = 'record_template.docx';
 
@@ -196,6 +194,9 @@
         if(text) document.getElementById('loading-text').innerText = text;
     }
 
+    // ============================================
+    // Auth 邏輯
+    // ============================================
     async function handleLogin() {
         if (!supabase) return;
         const email = document.getElementById('email').value;
@@ -239,6 +240,9 @@
         document.getElementById('manual_mode_box').style.display = mode === 'manual' ? 'block' : 'none';
     }
 
+    // ============================================
+    // 模板下載與生成邏輯
+    // ============================================
     async function findAndDownloadTemplate() {
         const { data: listData, error: listError } = await supabase.storage.from(BUCKET_NAME).list('templates');
         if (listError) throw new Error(`無法讀取資料夾列表: ${listError.message}`);
@@ -256,7 +260,7 @@
         showLoading(true, "正在從雲端搜尋模板...");
         try {
             const arrayBuffer = await findAndDownloadTemplate();
-            showLoading(true, "生成紀錄表中...");
+            showLoading(true, "正在執行 V5 核心修復...");
             await createWord(arrayBuffer, "長照紀錄_自動");
             showLoading(false);
         } catch (error) {
@@ -269,7 +273,7 @@
     async function generateRecordManual() {
         const fileInput = document.getElementById('manual_template_upload');
         if (fileInput.files.length === 0) { alert("請先選擇 Word 檔案"); return; }
-        showLoading(true, "處理中...");
+        showLoading(true, "正在執行 V5 核心修復...");
         try {
             const arrayBuffer = await fileInput.files[0].arrayBuffer();
             await createWord(arrayBuffer, "長照紀錄_手動");
@@ -281,45 +285,47 @@
     }
 
     // ============================================
-    // V5 核心：Word 生成 + 自動修復 (Clean XML)
+    // Word 生成函數 (V5 核彈級 XML 清洗)
     // ============================================
     async function createWord(buffer, prefix) {
         try {
             const zip = new PizZip(buffer);
             
-            // 🔥🔥🔥 強力 XML 清洗區 🔥🔥🔥
+            // 🔥🔥🔥 V5 核心：強制縫合斷裂的 XML 標籤 🔥🔥🔥
+            // 這段代碼會自動修復 "Duplicate open/close tags" 和 "Multi error"
             try {
                 const xmlFile = "word/document.xml";
                 if(zip.files[xmlFile]) {
                     let xml = zip.files[xmlFile].asText();
                     
-                    // 1. 移除 Word 拼字檢查標籤 (最常見的干擾源)
+                    // 1. 移除 Word 所有的拼字檢查與語言標籤 (這些是斷裂的主因)
                     xml = xml.replace(/<w:proofErr[^>]*\/>/g, "");
                     xml = xml.replace(/<w:gramE[^>]*\/>/g, "");
                     xml = xml.replace(/<w:lang[^>]*\/>/g, "");
-                    
-                    // 2. 移除重複的開始標籤 (Duplicate Open Tags)
-                    // 例如：把 {{user{{_name}} 修復為 {{user_name}}
-                    // 原理：只要 {{ 後面還有 {{，就刪掉後面那個
-                    let prevXml = "";
-                    while (xml !== prevXml) {
-                        prevXml = xml;
-                        xml = xml.replace(/({{[^{}]*){{/g, "$1");
-                    }
+                    xml = xml.replace(/<w:bookmarkStart[^>]*\/>/g, "");
+                    xml = xml.replace(/<w:bookmarkEnd[^>]*\/>/g, "");
 
-                    // 3. 移除重複的結束標籤 (Duplicate Close Tags)
-                    // 例如：把 {{user_name}} }} 修復為 {{user_name}}
-                    prevXml = "";
-                    while (xml !== prevXml) {
-                        prevXml = xml;
-                        xml = xml.replace(/(}}[^}{]*?)}}/g, "$1");
-                    }
+                    // 2. 修復斷裂的開始標籤 {{
+                    // 原理：找尋被 XML 標籤隔開的 { 和 {，例如 {</w:t>...<w:t>{，並替換為乾淨的 {{
+                    xml = xml.replace(/(\{(?:<[^>]+>)*\{)/g, "{{");
+
+                    // 3. 修復斷裂的結束標籤 }}
+                    // 原理：找尋被 XML 標籤隔開的 } 和 }，替換為乾淨的 }}
+                    xml = xml.replace(/(\}(?:<[^>]+>)*\})/g, "}}");
+
+                    // 4. 移除重複的 {{ (Duplicate Open Tags)
+                    // 如果出現 {{...{{ (中間沒有 }})，強制刪除後面的 {{
+                    xml = xml.replace(/({{[^}]*){{/g, "$1");
+
+                    // 5. 移除重複的 }} (Duplicate Close Tags)
+                    // 如果出現 }}...}} (中間沒有 {{)，強制刪除後面的 }}
+                    xml = xml.replace(/(}}[^}{]*?)}}/g, "$1");
 
                     zip.file(xmlFile, xml);
-                    console.log("🔥 XML 自動修復完成");
+                    console.log("🔥 V5 XML 自動修復完成");
                 }
             } catch(e) {
-                console.warn("自動修復程序異常 (不影響主流程)", e);
+                console.warn("XML 自動修復略過", e);
             }
             // ------------------------------------
 
@@ -365,7 +371,7 @@
                 const errorMessages = error.properties.errors.map(function(err) {
                     return err.properties.explanation;
                 }).join("\n");
-                alert("⚠️ 自動修復失敗，Word 格式損壞太嚴重：\n" + errorMessages);
+                alert("⚠️ 自動修復後仍有錯誤 (Word檔太亂了)：\n" + errorMessages);
             } else {
                 alert("❌ 生成失敗: " + error.message);
             }
