@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>長照紀錄自動生成系統 (最終完整版)</title>
+    <title>長照紀錄自動生成系統 (含自動修復功能)</title>
     
     <script type="module">
         import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -23,7 +23,6 @@
         body { font-family: "Microsoft JhengHei", sans-serif; padding: 20px; max-width: 900px; margin: 0 auto; background-color: #f5f7fa; color: #333; }
         .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
         
-        /* 頂部導航 */
         .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .back-link { text-decoration: none; color: #666; font-weight: bold; font-size: 1.1em; display: flex; align-items: center; gap: 5px; cursor: pointer; transition: color 0.2s; }
         .back-link:hover { color: #333; }
@@ -51,11 +50,9 @@
         .btn-generate { background-color: #27ae60; }
         .btn:disabled { background-color: #a0aec0; cursor: not-allowed; }
 
-        /* 登入視窗 */
         #login-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; align-items: center; justify-content: center; }
         .login-box { background: white; padding: 30px; border-radius: 10px; width: 300px; text-align: center; }
 
-        /* 讀取遮罩 */
         #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); display: none; justify-content: center; align-items: center; z-index: 10000; flex-direction: column; }
         #loading-text { font-size: 1.5em; color: #3498db; font-weight: bold; margin-bottom: 10px; }
     </style>
@@ -173,9 +170,6 @@
 </div>
 
 <script>
-    // ============================================
-    // 參數設定區
-    // ============================================
     const SUPABASE_URL = 'https://oipnjnwootorawargsxe.supabase.co';
     const RAW_KEY = 'sb_publishable_3KbpnkaYl5CxJufjrLKlAQ_0-nzCIII';
     const SUPABASE_KEY = RAW_KEY.trim();
@@ -185,9 +179,7 @@
 
     let supabase = null;
 
-    // ============================================
-    // 系統初始化
-    // ============================================
+    // 初始化
     window.onload = function() {
         showLoading(true, "系統初始化中...");
         setTimeout(() => {
@@ -211,9 +203,6 @@
         if(text) document.getElementById('loading-text').innerText = text;
     }
 
-    // ============================================
-    // Auth 邏輯
-    // ============================================
     async function handleLogin() {
         if (!supabase) return;
         const email = document.getElementById('email').value;
@@ -221,7 +210,6 @@
         const msg = document.getElementById('login-msg');
 
         if(!email || !password) { msg.innerText = "請輸入帳號密碼"; return; }
-        
         msg.innerText = "驗證中...";
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
@@ -252,41 +240,21 @@
         }
     }
 
-    // ============================================
-    // 模板下載與生成邏輯
-    // ============================================
     function switchTemplateMode() {
         const mode = document.querySelector('input[name="template_mode"]:checked').value;
         document.getElementById('auto_mode_box').style.display = mode === 'auto' ? 'block' : 'none';
         document.getElementById('manual_mode_box').style.display = mode === 'manual' ? 'block' : 'none';
     }
 
-    // 自動搜尋正確的路徑 (解決路徑問題)
     async function findAndDownloadTemplate() {
-        // 1. 嘗試列出 templates 資料夾內的檔案
-        const { data: listData, error: listError } = await supabase.storage
-            .from(BUCKET_NAME)
-            .list('templates');
+        const { data: listData, error: listError } = await supabase.storage.from(BUCKET_NAME).list('templates');
+        if (listError) throw new Error(`無法讀取資料夾列表: ${listError.message}`);
 
-        if (listError) {
-            throw new Error(`無法讀取資料夾列表: ${listError.message}`);
-        }
-
-        // 2. 在列表中尋找目標檔案
         const foundFile = listData.find(f => f.name === TARGET_FILE_NAME);
-        
-        if (!foundFile) {
-            throw new Error(`在雲端找不到檔案：${TARGET_FILE_NAME}\n目前資料夾內只有：${listData.map(f=>f.name).join(", ")}`);
-        }
+        if (!foundFile) throw new Error(`在雲端找不到檔案：${TARGET_FILE_NAME}`);
 
-        // 3. 找到檔案了，使用正確路徑下載
         const correctPath = `templates/${foundFile.name}`;
-        console.log("找到檔案路徑:", correctPath);
-
-        const { data, error } = await supabase.storage
-            .from(BUCKET_NAME)
-            .download(correctPath);
-
+        const { data, error } = await supabase.storage.from(BUCKET_NAME).download(correctPath);
         if (error) throw error;
         return await data.arrayBuffer();
     }
@@ -295,7 +263,6 @@
         showLoading(true, "正在從雲端搜尋模板...");
         try {
             const arrayBuffer = await findAndDownloadTemplate();
-            
             showLoading(true, "生成紀錄表中...");
             await createWord(arrayBuffer, "長照紀錄_自動");
             showLoading(false);
@@ -309,7 +276,6 @@
     async function generateRecordManual() {
         const fileInput = document.getElementById('manual_template_upload');
         if (fileInput.files.length === 0) { alert("請先選擇 Word 檔案"); return; }
-        
         showLoading(true, "處理中...");
         try {
             const arrayBuffer = await fileInput.files[0].arrayBuffer();
@@ -322,11 +288,33 @@
     }
 
     // ============================================
-    // 共用 Word 生成函數 (含 Multi Error 錯誤偵測)
+    // Word 生成函數 (含自動修復功能)
     // ============================================
     async function createWord(buffer, prefix) {
         try {
             const zip = new PizZip(buffer);
+            
+            // 🛠️ 懶人救星：自動修復 Word XML 🛠️
+            // 這段代碼會把 Word 裡的 {{...}} 清洗乾淨，解決 "Multi error" / "Duplicate open tags"
+            try {
+                const xmlFile = "word/document.xml";
+                if(zip.files[xmlFile]) {
+                    let xml = zip.files[xmlFile].asText();
+                    
+                    // 1. 移除標籤內的 XML 樣式 (例如 {{<font>user</font>}} -> {{user}})
+                    xml = xml.replace(/({{[^}]*}})/g, (m) => m.replace(/<[^>]+>/g, ""));
+                    
+                    // 2. 移除多餘的重複括號 (例如 {{{{user}}}} -> {{user}})
+                    xml = xml.replace(/{{2,}/g, "{{").replace(/}}{2,}/g, "}}");
+                    
+                    zip.file(xmlFile, xml);
+                    console.log("已自動執行 Word 標籤修復程序");
+                }
+            } catch(e) {
+                console.warn("自動修復略過", e);
+            }
+            // ------------------------------------
+
             const doc = new window.docxtemplater(zip, { 
                 paragraphLoop: true, 
                 linebreaks: true,
@@ -354,7 +342,7 @@
             };
 
             doc.setData(templateData);
-            doc.render(); // 這裡如果出錯，會被下面的 catch 抓到
+            doc.render();
 
             const blob = doc.getZip().generate({
                 type: "blob",
@@ -365,20 +353,14 @@
             
         } catch (error) {
             showLoading(false);
-            
-            // 🌟 錯誤解析邏輯：把奇怪的代碼轉成人類看得懂的訊息
             if (error.properties && error.properties.errors) {
                 const errorMessages = error.properties.errors.map(function(err) {
                     return err.properties.explanation;
                 }).join("\n");
-                
-                console.log("Word 模板錯誤詳情:", errorMessages);
-                alert("⚠️ Word 模板格式有誤！\n\n請打開您的 Word 檔，檢查下列標籤是否打錯字或括號不完整：\n\n" + errorMessages);
+                alert("⚠️ 自動修復後仍有錯誤 (Word檔太亂了)：\n" + errorMessages);
             } else {
-                console.error(error);
                 alert("❌ 生成失敗: " + error.message);
             }
-            throw error;
         }
     }
 
